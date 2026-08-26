@@ -1,0 +1,92 @@
+{
+  "name": "mlsbench-lite30-five-rounds",
+  "task_resources": {
+    "optimization-multi-objective": {"peak": 0, "minimum": 0},
+    "optimization-variance-reduction": {"peak": 1, "minimum": 1},
+    "ml-clustering-algorithm": {"peak": 0, "minimum": 0},
+    "ml-dimensionality-reduction": {"peak": 0, "minimum": 0},
+    "causal-discovery-discrete": {"peak": 0, "minimum": 0},
+    "graph-generation": {"peak": 1, "minimum": 1},
+    "cv-pooling-aggregation": {"peak": 3, "minimum": 1},
+    "dl-activation-function": {"peak": 3, "minimum": 1},
+    "security-membership-inference-defense": {"peak": 3, "minimum": 1},
+    "cv-3dgs-densification": {"peak": 1, "minimum": 1},
+    "cv-dbm-sampler": {"peak": 12, "minimum": 4},
+    "cv-vae-loss": {"peak": 8, "minimum": 8},
+    "llm-dllm-demask-strategy": {"peak": 2, "minimum": 1},
+    "llm-pretrain-optimizer": {"peak": 4, "minimum": 4},
+    "llm-rl-importance-sampling": {"peak": 2, "minimum": 2},
+    "llm-ptq-algorithm": {"peak": 3, "minimum": 1},
+    "llm-qat-algorithm": {"peak": 1, "minimum": 1},
+    "mlsys-sparse-attention-inference": {"peak": 3, "minimum": 1},
+    "jepa-planning": {"peak": 1, "minimum": 1},
+    "robo-diffusion-guidance": {"peak": 1, "minimum": 1},
+    "robo-diffusion-policy": {"peak": 1, "minimum": 1},
+    "robo-humanoid-sim2real-algo": {"peak": 1, "minimum": 1},
+    "robomimic-bc-loss": {"peak": 1, "minimum": 1},
+    "rl-value-discrete": {"peak": 1, "minimum": 1},
+    "ai4bio-mutation-effect-prediction": {"peak": 1, "minimum": 1},
+    "ai4sci-inverse-diffusion-algo": {"peak": 3, "minimum": 1},
+    "ai4sci-pla-binding-affinity": {"peak": 3, "minimum": 1},
+    "quant-concept-drift": {"peak": 3, "minimum": 1},
+    "ts-exogenous-forecast": {"peak": 1, "minimum": 1},
+    "ts-imputation": {"peak": 1, "minimum": 1}
+  },
+  "rounds": [
+    {
+      "id": 1, "platform_profile": "4090", "platform_gpus": 1,
+      "tasks": [
+        {"id": "optimization-multi-objective", "review_required": true, "notes": "Known upstream host-side dgp.py/import gap must be resolved and hash-recorded before execution."},
+        {"id": "optimization-variance-reduction"},
+        {"id": "ml-clustering-algorithm"},
+        {"id": "ml-dimensionality-reduction"},
+        {"id": "causal-discovery-discrete"},
+        {"id": "graph-generation"}
+      ]
+    },
+    {
+      "id": 2, "platform_profile": "4090", "platform_gpus": 8,
+      "tasks": [
+        {"id": "cv-pooling-aggregation"},
+        {"id": "dl-activation-function"},
+        {"id": "security-membership-inference-defense"},
+        {"id": "cv-3dgs-densification"},
+        {"id": "cv-dbm-sampler", "allow_waves": true, "review_required": true, "notes": "Official peak/min is 12/4 GPUs. MLS direct execution supports partitioning the three 4-GPU entries into waves on one 8-GPU node."},
+        {"id": "cv-vae-loss"}
+      ]
+    },
+    {
+      "id": 3, "platform_profile": "4090", "platform_gpus": 4,
+      "tasks": [
+        {"id": "llm-dllm-demask-strategy"},
+        {"id": "llm-pretrain-optimizer"},
+        {"id": "llm-rl-importance-sampling"},
+        {"id": "llm-ptq-algorithm"},
+        {"id": "llm-qat-algorithm"},
+        {"id": "mlsys-sparse-attention-inference"}
+      ]
+    },
+    {
+      "id": 4, "platform_profile": "4090", "platform_gpus": 1,
+      "tasks": [
+        {"id": "jepa-planning"},
+        {"id": "robo-diffusion-guidance"},
+        {"id": "robo-diffusion-policy"},
+        {"id": "robo-humanoid-sim2real-algo"},
+        {"id": "robomimic-bc-loss"},
+        {"id": "rl-value-discrete"}
+      ]
+    },
+    {
+      "id": 5, "platform_profile": "4090", "platform_gpus": 4,
+      "tasks": [
+        {"id": "ai4bio-mutation-effect-prediction"},
+        {"id": "ai4sci-inverse-diffusion-algo"},
+        {"id": "ai4sci-pla-binding-affinity"},
+        {"id": "quant-concept-drift"},
+        {"id": "ts-exogenous-forecast"},
+        {"id": "ts-imputation"}
+      ]
+    }
+  ]
+}

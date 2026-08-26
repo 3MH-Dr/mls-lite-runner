@@ -1,0 +1,1009 @@
+{
+  "counts": {
+    "READY": 1,
+    "READY_WITH_WARNINGS": 29
+  },
+  "generated_at": "2026-08-26T10:46:51.697251+00:00",
+  "mls_commit": "cfd57a7e0139c72753e32e31bca593719b098717",
+  "mls_dirty": true,
+  "mls_status": [
+    "M .gitignore",
+    " M pyproject.toml",
+    " M src/mlsbench/cli.py",
+    " M tasks/optimization-multi-objective/leaderboard.csv",
+    "?? .docker-launch.lock",
+    "?? configs/miniswe_bash.yaml",
+    "?? runs/",
+    "?? src/mlsbench/agent/miniswe_bash_agent.py",
+    "?? src/mlsbench/agent/miniswe_bash_environment.py",
+    "?? tests/"
+  ],
+  "schema": 1,
+  "suite": "mlsbench-lite30-five-rounds",
+  "task_count": 30,
+  "tasks": [
+    {
+      "agent_shell_package": "deap",
+      "host_imports": [
+        "base64",
+        "dgp",
+        "mlsbench",
+        "numpy",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "HOST_IMPORT_AVAILABLE",
+          "level": "INFO",
+          "message": "host import 'numpy' must exist in the platform venv",
+          "path": "tasks/optimization-multi-objective/parser.py"
+        },
+        {
+          "code": "ASSET_READY",
+          "level": "INFO",
+          "message": "verified external/untracked asset b76835a33d0471362b4ba5bae4f95a4917100dded071a52778dbb5420354e80f",
+          "path": "holdout/optimization-multi-objective/dgp.py"
+        }
+      ],
+      "packages": [
+        "deap"
+      ],
+      "status": "READY",
+      "task": "optimization-multi-objective",
+      "test_commands": 4
+    },
+    {
+      "agent_shell_package": "opt-vr-bench",
+      "host_imports": [
+        "base64",
+        "dgp",
+        "mlsbench",
+        "numpy",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "HOST_IMPORT_AVAILABLE",
+          "level": "INFO",
+          "message": "host import 'numpy' must exist in the platform venv",
+          "path": "tasks/optimization-variance-reduction/parser.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare opt-vr-bench at local",
+          "path": "vendor/packages.yaml"
+        },
+        {
+          "code": "ASSET_LOAD_REQUIRED",
+          "level": "WARN",
+          "message": "verified source is available for automatic loading into holdout/optimization-variance-reduction/dgp.py",
+          "path": "holdout/optimization-variance-reduction/dgp.py"
+        }
+      ],
+      "packages": [
+        "opt-vr-bench"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "optimization-variance-reduction",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "scikit-learn",
+      "host_imports": [
+        "base64",
+        "dgp",
+        "mlsbench",
+        "numpy",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "HOST_IMPORT_AVAILABLE",
+          "level": "INFO",
+          "message": "host import 'numpy' must exist in the platform venv",
+          "path": "tasks/ml-clustering-algorithm/parser.py"
+        },
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/sklearn",
+          "path": "vendor/data_scripts/scikit-learn/prepare_data.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare scikit-learn at local",
+          "path": "vendor/packages.yaml"
+        },
+        {
+          "code": "ASSET_LOAD_REQUIRED",
+          "level": "WARN",
+          "message": "verified source is available for automatic loading into holdout/ml-clustering-algorithm/dgp.py",
+          "path": "holdout/ml-clustering-algorithm/dgp.py"
+        }
+      ],
+      "packages": [
+        "scikit-learn"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "ml-clustering-algorithm",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "scikit-learn",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/sklearn",
+          "path": "vendor/data_scripts/scikit-learn/prepare_data.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare scikit-learn at local",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "scikit-learn"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "ml-dimensionality-reduction",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "causal-bnlearn",
+      "host_imports": [
+        "base64",
+        "dgp",
+        "mlsbench",
+        "numpy",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "HOST_IMPORT_AVAILABLE",
+          "level": "INFO",
+          "message": "host import 'numpy' must exist in the platform venv",
+          "path": "tasks/causal-discovery-discrete/parser.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare causal-bnlearn at f66d0f9841eb478c3dcb0b61a9cc5c419fd46fb6",
+          "path": "vendor/packages.yaml"
+        },
+        {
+          "code": "ASSET_LOAD_REQUIRED",
+          "level": "WARN",
+          "message": "verified source is available for automatic loading into holdout/causal-discovery-discrete/dgp.py",
+          "path": "holdout/causal-discovery-discrete/dgp.py"
+        }
+      ],
+      "packages": [
+        "causal-bnlearn"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "causal-discovery-discrete",
+      "test_commands": 5
+    },
+    {
+      "agent_shell_package": "pytorch-geometric",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare pytorch-geometric at 76ff9c2ce18c8cebf52122b57e2aeadce9793d10",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "pytorch-geometric"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "graph-generation",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "pytorch-vision",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/pytorch-vision",
+          "path": "vendor/data_scripts/pytorch-vision/prepare_data.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare pytorch-vision at local",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "pytorch-vision"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "cv-pooling-aggregation",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "pytorch-vision",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/pytorch-vision",
+          "path": "vendor/data_scripts/pytorch-vision/prepare_data.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare pytorch-vision at local",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "pytorch-vision"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "dl-activation-function",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "pytorch-vision",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/pytorch-vision",
+          "path": "vendor/data_scripts/pytorch-vision/prepare_data.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare pytorch-vision at local",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "pytorch-vision"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "security-membership-inference-defense",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "gsplat",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/gsplat_data/360_v2",
+          "path": "vendor/data_scripts/gsplat/prepare_data.py"
+        },
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/gsplat_data/torch_cache",
+          "path": "vendor/data_scripts/gsplat/prepare_data.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare gsplat at 04b7d5b326bb5aec3c6021af413790c15bab6265",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "gsplat"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "cv-3dgs-densification",
+      "test_commands": 4
+    },
+    {
+      "agent_shell_package": "dbim-codebase",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/dbim_data",
+          "path": "vendor/data_scripts/dbim-codebase/prepare_data.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare dbim-codebase at 92522733cc602686df77f07a1824bb89f89cda1a",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "dbim-codebase"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "cv-dbm-sampler",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "diffusers-main",
+      "host_imports": [
+        "mlsbench",
+        "re"
+      ],
+      "issues": [
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/diffusers_data",
+          "path": "vendor/data_scripts/diffusers-main/prepare_data.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare diffusers-main at a9855c4204047c3ff7183fce1502a253efb005c4",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "diffusers-main"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "cv-vae-loss",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "LLaDA",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/llada-instruct",
+          "path": "vendor/data_scripts/LLaDA/prepare_llada_instruct.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare LLaDA at 570f29032d6824ea14977c89a8eb402e6eb25f96",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "LLaDA"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "llm-dllm-demask-strategy",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "nanoGPT",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/lm-eval-datasets",
+          "path": "vendor/data_scripts/lm-evaluation-harness/prepare_datasets.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare lm-evaluation-harness at 9d36354e6422db94c374dc476c093b1495370983",
+          "path": "vendor/packages.yaml"
+        },
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/climbmix",
+          "path": "vendor/data_scripts/nanoGPT/prepare_climbmix.py"
+        },
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/eval",
+          "path": "vendor/data_scripts/nanoGPT/prepare_eval.py"
+        },
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/lm-eval-datasets",
+          "path": "vendor/data_scripts/lm-evaluation-harness/prepare_datasets.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare nanoGPT at 3adf61e154c3fe3fca428ad6bc3818b27a3b8291",
+          "path": "vendor/packages.yaml"
+        },
+        {
+          "code": "AGENT_IMAGE_SELECTED",
+          "level": "INFO",
+          "message": "multi-package task uses nanoGPT as the Agent Bash image",
+          "path": "config.json"
+        }
+      ],
+      "packages": [
+        "lm-evaluation-harness",
+        "nanoGPT"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "llm-pretrain-optimizer",
+      "test_commands": 2
+    },
+    {
+      "agent_shell_package": "verl",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/models/Qwen3-1.7B",
+          "path": "vendor/data_scripts/verl/prepare_models.py"
+        },
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/models/Qwen2.5-0.5B",
+          "path": "vendor/data_scripts/verl/prepare_models.py"
+        },
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/models/Qwen2.5-1.5B",
+          "path": "vendor/data_scripts/verl/prepare_models.py"
+        },
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/verl-data",
+          "path": "vendor/data_scripts/verl/prepare_data.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare verl at 32705dc135c9a4a06f359361b3d394610ad07e0c",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "verl"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "llm-rl-importance-sampling",
+      "test_commands": 1
+    },
+    {
+      "agent_shell_package": "gptq",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/mistral-7b-v01",
+          "path": "vendor/data_scripts/gptq/prepare_model.py"
+        },
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/wikitext2",
+          "path": "vendor/data_scripts/gptq/prepare_wikitext2.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare gptq at 2d65066eeb06a5c9ff5184d8cebdf33662c67faf",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "gptq"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "llm-ptq-algorithm",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "llm-qat-runtime",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/pythia-1.4b",
+          "path": "vendor/data_scripts/llm-qat-runtime/prepare_pythia.py"
+        },
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/wikitext2",
+          "path": "vendor/data_scripts/llm-qat-runtime/prepare_wikitext2.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare llm-qat-runtime at local",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "llm-qat-runtime"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "llm-qat-algorithm",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "sparse-attn-eval",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/qwen2.5-1.5b-instruct",
+          "path": "vendor/data_scripts/sparse-attn-eval/prepare_pythia.py"
+        },
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/longctx",
+          "path": "vendor/data_scripts/sparse-attn-eval/prepare_longctx.py"
+        },
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/longbench-qasper",
+          "path": "vendor/data_scripts/sparse-attn-eval/prepare_longbench.py"
+        },
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/niah",
+          "path": "vendor/data_scripts/sparse-attn-eval/prepare_niah.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare sparse-attn-eval at local",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "sparse-attn-eval"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "mlsys-sparse-attention-inference",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "eb_jepa",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare eb_jepa at 966e61e9285b3a876f49b9774e9720d9a99a7925",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "eb_jepa"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "jepa-planning",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "CleanDiffuser",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare CleanDiffuser at 05f17fc9dbeae7c19a5e264632c9ae9aaac5994e",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "CleanDiffuser"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "robo-diffusion-guidance",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "CleanDiffuser",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare CleanDiffuser at 05f17fc9dbeae7c19a5e264632c9ae9aaac5994e",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "CleanDiffuser"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "robo-diffusion-policy",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "humanoid-gym",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/isaacgym",
+          "path": "vendor/data_scripts/humanoid-gym/prepare_isaacgym.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare humanoid-gym at ae46e201c85a2b17e7f2cea59a441dae7ea88a8f",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "humanoid-gym"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "robo-humanoid-sim2real-algo",
+      "test_commands": 4
+    },
+    {
+      "agent_shell_package": "robomimic",
+      "host_imports": [
+        "json",
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {project_root}/vendor/data/robomimic/transport",
+          "path": "vendor/pkg_configs/robomimic/download_transport.py"
+        },
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {project_root}/vendor/data/robomimic/tool_hang",
+          "path": "vendor/pkg_configs/robomimic/download_tool_hang.py"
+        },
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {project_root}/vendor/data/robomimic/can",
+          "path": "vendor/pkg_configs/robomimic/download_can.py"
+        },
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {project_root}/vendor/data/robomimic/square",
+          "path": "vendor/pkg_configs/robomimic/download_square.py"
+        },
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/robomimic/hf_cache_clip",
+          "path": "vendor/data_scripts/robomimic/prepare_clip.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare robomimic at e10526b9a40c78b41f1e37e60041dc0ec0a5f60f",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "robomimic"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "robomimic-bc-loss",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "cleanrl",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare cleanrl at 004f8a086a892a2a180f4dd332b90d83a968aa7a",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "cleanrl"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "rl-value-discrete",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "ProteinGym",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/proteingym",
+          "path": "vendor/data_scripts/ProteinGym/prepare_data.py"
+        },
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/proteingym_embeddings",
+          "path": "vendor/data_scripts/ProteinGym/prepare_data.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare ProteinGym at 144fe22b07dfaeec2b366f2346203a9838a55b4c",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "ProteinGym"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "ai4bio-mutation-effect-prediction",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "InverseBench",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {project_root}/vendor/data/inversebench",
+          "path": "vendor/data_scripts/InverseBench/prepare_data.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare InverseBench at c375f71ea528b29b49e2d79470872302627fb3ca",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "InverseBench"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "ai4sci-inverse-diffusion-algo",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "EHIGN_PLA",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}/EHIGN_PLA",
+          "path": "vendor/data_scripts/EHIGN_PLA/prepare_data.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare EHIGN_PLA at dfd88256318c1a35c7c7adb5534f0c706d9a16f3",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "EHIGN_PLA"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "ai4sci-pla-binding-affinity",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "qlib",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare qlib at da920b7f954f48ab1bb64117c976710de198373e",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "qlib"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "quant-concept-drift",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "Time-Series-Library",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}",
+          "path": "vendor/pkg_configs/Time-Series-Library/prepare_data.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare Time-Series-Library at edebffd8ea8f2db74346026dc31b9e96776ff575",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "Time-Series-Library"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "ts-exogenous-forecast",
+      "test_commands": 3
+    },
+    {
+      "agent_shell_package": "Time-Series-Library",
+      "host_imports": [
+        "mlsbench",
+        "pathlib",
+        "re",
+        "sys"
+      ],
+      "issues": [
+        {
+          "code": "DATA_PREP_REQUIRED",
+          "level": "WARN",
+          "message": "official prepare script will create {data_root}",
+          "path": "vendor/pkg_configs/Time-Series-Library/prepare_data.py"
+        },
+        {
+          "code": "PACKAGE_FETCH_REQUIRED",
+          "level": "WARN",
+          "message": "official fetch will prepare Time-Series-Library at edebffd8ea8f2db74346026dc31b9e96776ff575",
+          "path": "vendor/packages.yaml"
+        }
+      ],
+      "packages": [
+        "Time-Series-Library"
+      ],
+      "status": "READY_WITH_WARNINGS",
+      "task": "ts-imputation",
+      "test_commands": 3
+    }
+  ]
+}

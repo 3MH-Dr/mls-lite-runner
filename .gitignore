@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+state/
+runtime/
+*.log
+*.part
+.env
+tests/_runtime/*
+!tests/_runtime/.gitkeep
+.simulation/

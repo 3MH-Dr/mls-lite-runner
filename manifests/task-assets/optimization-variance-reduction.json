@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "task": "optimization-variance-reduction",
+  "compatible_mls_commits": ["cfd57a7e0139c72753e32e31bca593719b098717"],
+  "assets": [
+    {
+      "destination": "holdout/optimization-variance-reduction/dgp.py",
+      "source": "harbor/tasks/mls-bench__optimization-variance-reduction/tests/eval/_inputgen/holdout/optimization-variance-reduction/dgp.py",
+      "sha256": "3e6f30e6f4c109fa7577788b1c65a5f410e986bfa1190d99715197c49eedd349",
+      "required_by": "host-parser",
+      "provenance": "Tracked Harbor evaluation asset in MLS-Bench commit cfd57a7e0139c72753e32e31bca593719b098717."
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "task": "ml-clustering-algorithm",
+  "compatible_mls_commits": ["cfd57a7e0139c72753e32e31bca593719b098717"],
+  "assets": [
+    {
+      "destination": "holdout/ml-clustering-algorithm/dgp.py",
+      "source": "harbor/tasks/mls-bench__ml-clustering-algorithm/tests/eval/_inputgen/holdout/ml-clustering-algorithm/dgp.py",
+      "sha256": "c2120a881bd8d7f518ea7deb0a308cae95f0e9dff35af255b3dd57a90600b607",
+      "required_by": "host-parser",
+      "provenance": "Tracked Harbor evaluation asset in MLS-Bench commit cfd57a7e0139c72753e32e31bca593719b098717."
+    }
+  ]
+}

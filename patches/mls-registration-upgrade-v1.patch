@@ -1,0 +1,12 @@
+diff --git a/src/mlsbench/cli.py b/src/mlsbench/cli.py
+--- a/src/mlsbench/cli.py
++++ b/src/mlsbench/cli.py
+@@ -2480,7 +2480,7 @@ def cmd_agent(args):
+         from mlsbench.agent.discover_agent import DiscoverAgent
+         agent_cls = DiscoverAgent
+     elif agent_type == "miniswe-bash":
+-        from mlsbench.agent.miniswe_bash_agent import MiniSWEBashAgent
++        from mls_agent.miniswe_bash_agent import MiniSWEBashAgent
+         agent_cls = MiniSWEBashAgent
+     else:
+         from mlsbench.agent.interactive import InteractiveAgent

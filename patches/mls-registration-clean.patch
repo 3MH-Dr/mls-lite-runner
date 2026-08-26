@@ -1,0 +1,29 @@
+diff --git a/src/mlsbench/cli.py b/src/mlsbench/cli.py
+--- a/src/mlsbench/cli.py
++++ b/src/mlsbench/cli.py
+@@ -2479,6 +2479,9 @@ def cmd_agent(args):
+     elif agent_type == "discover":
+         from mlsbench.agent.discover_agent import DiscoverAgent
+         agent_cls = DiscoverAgent
++    elif agent_type == "miniswe-bash":
++        from mls_agent.miniswe_bash_agent import MiniSWEBashAgent
++        agent_cls = MiniSWEBashAgent
+     else:
+         from mlsbench.agent.interactive import InteractiveAgent
+         agent_cls = InteractiveAgent
+@@ -2532,10 +2535,13 @@ def main():
+         help="Resume a previously interrupted agent run from its log",
+     )
+     p_agent.add_argument(
+-        "--agent-type", choices=["interactive", "openevolve", "discover"], default="interactive",
++        "--agent-type",
++        choices=["interactive", "openevolve", "discover", "miniswe-bash"],
++        default="interactive",
+         help="Agent implementation: 'interactive' (chat-style tool-use, default), "
+              "'openevolve' (evolutionary code search via vendored OpenEvolve), or "
+-             "'discover' (test-time RL LoRA via ttt-discover + Tinker)",
++             "'discover' (test-time RL LoRA via ttt-discover + Tinker), or "
++             "'miniswe-bash' (external mini-swe loop with one Bash tool)",
+     )
+     p_agent.add_argument(
+         "--openevolve-iterations", type=int, default=None,

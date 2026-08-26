@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "task": "optimization-multi-objective",
+  "compatible_mls_commits": ["cfd57a7e0139c72753e32e31bca593719b098717"],
+  "assets": [
+    {
+      "destination": "holdout/optimization-multi-objective/dgp.py",
+      "source": "harbor/tasks/mls-bench__optimization-multi-objective/tests/eval/_inputgen/holdout/optimization-multi-objective/dgp.py",
+      "sha256": "b76835a33d0471362b4ba5bae4f95a4917100dded071a52778dbb5420354e80f",
+      "required_by": "host-parser",
+      "provenance": "Tracked Harbor evaluation asset in MLS-Bench commit cfd57a7e0139c72753e32e31bca593719b098717."
+    }
+  ]
+}

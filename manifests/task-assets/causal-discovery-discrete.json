@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "task": "causal-discovery-discrete",
+  "compatible_mls_commits": ["cfd57a7e0139c72753e32e31bca593719b098717"],
+  "assets": [
+    {
+      "destination": "holdout/causal-discovery-discrete/dgp.py",
+      "source": "harbor/tasks/mls-bench__causal-discovery-discrete/tests/eval/_inputgen/holdout/causal-discovery-discrete/dgp.py",
+      "sha256": "3eaccae6f9316af2bbdf7b28534c21142b902e4336e3c8035937b4dd1cd45608",
+      "required_by": "host-parser",
+      "provenance": "Tracked Harbor evaluation asset in MLS-Bench commit cfd57a7e0139c72753e32e31bca593719b098717."
+    }
+  ]
+}
