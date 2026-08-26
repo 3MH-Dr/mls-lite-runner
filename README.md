@@ -7,7 +7,7 @@
 
 MLS-Bench仍保存在自己的仓库中。接入只修改MLS的CLI注册入口，使其从外部 `mls_agent` 包导入Agent；不再复制Agent文件进MLS，也不使用CPU模型controller或 `QueueProxyModel`。
 
-Agent迭代以release目录和Python环境双重隔离：例如 `mls-lite-runner-v001` 配 `mlsbench-lite-agent-v001`，v002使用另一组路径。MLS中的注册入口保持不变；回退时直接用旧ReleaseId提交即可。升级旧内置适配时，原来复制到MLS里的两个未跟踪文件不会被自动删除，但注册入口不再使用它们，避免误删已有工作。
+Agent迭代使用完整release胶囊隔离。v002不修改平台现有MLS、Agent或环境；回退时继续提交旧ReleaseId即可。
 
 ## 已绑定的版本和本地预检
 
@@ -36,14 +36,17 @@ MLS commit: cfd57a7e0139c72753e32e31bca593719b098717
 ## 存储和配置关系
 
 ```text
-code/MLS-Bench/                  题目、测试、评分、Docker/GPU调度
-code/mini-swe-agent-v2.4.6/      固定版本的上游Agent循环依赖
-code/mls-lite-runner-v001/       外部Agent + AgentRun
-runtime/envs/mlsbench-lite-agent-v001 v001独立Python环境
-runtime/configs/v001/            无密钥direct LiteLLM配置
-runtime/state/v001/              30题持久状态
-runtime/assets/receipts/v001/    按题资产加载记录
-runtime/execution/v001/          workspace、日志和轮次报告
+code/mls-lite-runner-v002/                 完整、可整体替换的release
+├── src/                                   外部Agent + AgentRun
+├── deps/MLS-Bench/                        release专用MLS副本
+├── deps/mini-swe-agent-v2.4.6/            release专用上游Agent依赖
+└── runtime/
+    ├── env/                               release专用Python环境
+    ├── config/miniswe_bash.yaml           无密钥direct LiteLLM配置
+    ├── rounds/round-N/state.json          每轮独立状态
+    ├── rounds/round-N/execution/           workspace和日志
+    ├── assets/receipts/                   资产加载凭据
+    └── locks/mls-prepare.lock             五作业共享准备锁
 ```
 
 生成的Agent配置使用：
@@ -53,6 +56,7 @@ model_class: litellm
 ```
 
 模型名由运行参数提供。应传入本地已验证的真实LiteLLM模型标识；在确认前不要把“deepseekflash”擅自转换成其他名字。
+配置同时写入 `api_base: "http://106.15.124.164:4000/v1"`；平台入口还会显式执行 `export LLMROUTER_BASE_URL="http://106.15.124.164:4000/v1"`。
 
 ## 单题真实链路
 
@@ -94,6 +98,8 @@ failed
 
 下次运行会自动重新检查blocked题。补齐后直接进入running；成功题永远跳过。单题实际执行失败会记录failed并继续后续题，使用 `--retry-failed` 明确重试。共享Python、Docker、GPU数量、Agent导入或direct配置错误属于基础设施错误，会在整轮开始前终止。
 
+日志中的 `RUN_ROUND_ORCHESTRATION_OK` 只表示六题循环正常走到末尾；只有 `ROUND_COMPLETE=yes` 且 `ROUND_COUNTS` 为6个succeeded，才表示该轮全部完成。blocked题可在补齐后原命令重跑，failed题需加 `-RetryFailed`。
+
 ## 五轮4090资源
 
 | 轮次 | 题数 | 单节点4090 | 原因 |
@@ -104,7 +110,9 @@ failed
 | 4 | 6 | 1 | 六题均为单卡 |
 | 5 | 6 | 4 | 峰值3卡，平台规格向上取4 |
 
-所有轮次固定 `--nodes 1`。`cv-dbm-sampler` peak/minimum为12/4，MLS在8张可见卡上将同组命令分wave执行，不启动第二份AgentRun。
+所有轮次固定 `--nodes 1`。不是30题都要8卡；第2轮整体申请8卡，是因为其中 `cv-vae-loss` 的最低需求为8。`cv-dbm-sampler` peak/minimum为12/4，MLS在8张可见卡上将同组命令分wave执行，不启动第二份AgentRun。
+
+五轮可以提交成五个并发作业，共请求18张4090。每个作业内六题仍严格顺序执行；五个作业之间并行。每轮使用独立state和execution目录，共享MLS的package/data准备使用跨进程文件锁，避免并发写坏。提交前仍需用平台resources确认当时配额，并考虑8卡作业排队及API限流。
 
 ## 本地命令
 
@@ -141,15 +149,15 @@ git diff --binary
 
 ## 平台脚本（当前仅本地准备，尚未执行）
 
-- `scripts/submit-bootstrap.ps1`：CPU下载固定release、记录MLS现状、选择接入/升级补丁、editable安装runner、生成direct配置和状态。
-- `scripts/submit-install-environment.ps1`：CPU复用或创建Python 3.11共享环境，固定MLS commit与mini-SWE v2.4.6，并安装宿主依赖；不强制覆盖pip索引。
+- `scripts/submit-prepare-release.ps1`：CPU一次性下载完整v002胶囊、安装环境、应用并记录可逆MLS注册补丁、生成配置及五个独立state。
 - `scripts/submit-4090-smoke.ps1`：验证指定数量4090、联网、Docker和Python导入。
 - `scripts/submit-api-smoke.ps1`：在单卡4090上用同一配置发出一次最小模型请求，只报告成功与否，不打印回复或密钥。
-- `scripts/submit-run-task.ps1`：按manifest为指定Lite题申请对应4090卡数，执行真实Agent/test/submit单题smoke；与整轮共用状态，成功后整轮自动跳过。
+- `scripts/submit-run-task.ps1`：按manifest为指定Lite题申请对应4090卡数，执行真实单题。
 - `scripts/show-round-template.ps1`：检查对应轮次模板和资源。
-- `scripts/submit-run-round.ps1`：联网4090直接调用模型API；每题先按MLS官方清单获取包、准备数据和构建镜像，再运行Agent。单题准备失败只阻塞该题并继续后续题。
+- `scripts/submit-run-round.ps1`：要求命令显式传入1至6个task；同一作业内顺序执行。五轮可分别提交并发运行。
+- `scripts/submit-round-report.ps1`：不依赖交互shell，用CPU作业把指定轮报告打印到qz日志。
 
-所有PowerShell脚本默认只打印最终 `qz-job` 命令；只有加 `-Execute` 才会SSH提交。API Key不进Git或 `qz-job --command`，未来平台运行时从项目盘权限受限的 `runtime/secrets/deepseek.env` 加载。
+所有PowerShell脚本默认只打印最终 `qz-job` 命令；只有加 `-Execute` 才会SSH提交。按当前约定，API Key直接作为command参数传入，不写Git或release文件，但会出现在本机命令历史、平台作业command/元数据中。入口不会把key打印到日志。
 
 ## 尚需真实平台验证
 

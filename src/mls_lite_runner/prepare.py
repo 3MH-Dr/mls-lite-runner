@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import hashlib
 import subprocess
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator
 
 from .io import atomic_write_json, read_json
 from .manifest import RoundSpec
@@ -25,9 +27,40 @@ def prepare_commands(python: Path, mls_root: Path, config: Path, packages: list[
     ]
 
 
-def execute_commands(commands: list[list[str]], cwd: Path) -> None:
-    for command in commands:
-        subprocess.run(command, cwd=cwd, check=True)
+@contextmanager
+def _exclusive_file_lock(path: Path | None) -> Iterator[None]:
+    if path is None:
+        yield
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+b") as handle:
+        if __import__("os").name == "nt":
+            import msvcrt
+
+            handle.seek(0)
+            handle.write(b"0")
+            handle.flush()
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            try:
+                yield
+            finally:
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def execute_commands(commands: list[list[str]], cwd: Path, lock_path: Path | None = None) -> None:
+    with _exclusive_file_lock(lock_path):
+        for command in commands:
+            subprocess.run(command, cwd=cwd, check=True)
 
 
 def _sha256(path: Path) -> str:

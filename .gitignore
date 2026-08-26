@@ -4,6 +4,7 @@ __pycache__/
 .venv/
 state/
 runtime/
+deps/
 *.log
 *.part
 .env

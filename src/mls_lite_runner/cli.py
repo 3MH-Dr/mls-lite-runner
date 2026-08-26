@@ -11,7 +11,7 @@ from pathlib import Path
 import yaml
 
 from .assets import prepare_task_assets, unload_task_assets
-from .config import render_miniswe_config
+from .config import DEFAULT_LLMROUTER_BASE_URL, render_miniswe_config
 from .doctor import Check, inspect_task, run_doctor
 from .io import atomic_write_json, atomic_write_text
 from .manifest import Manifest, load_manifest
@@ -70,7 +70,7 @@ def cmd_write_config(args: argparse.Namespace) -> int:
         return 2
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(
-        render_miniswe_config(Path(args.save_path).resolve()),
+        render_miniswe_config(Path(args.save_path).resolve(), api_base=args.api_base),
         encoding="utf-8",
         newline="\n",
     )
@@ -181,7 +181,11 @@ def _ensure_task_ready(args: argparse.Namespace, manifest: Manifest, mls_root: P
             if not args.execute:
                 continue
             try:
-                execute_commands([command], mls_root)
+                execute_commands(
+                    [command],
+                    mls_root,
+                    Path(args.prepare_lock).resolve() if args.prepare_lock else None,
+                )
             except Exception as exc:
                 issues.append(f"PACKAGE_PREP_FAILED: {package}: {type(exc).__name__}: {exc}")
                 break
@@ -249,13 +253,26 @@ def cmd_run_round(args: argparse.Namespace) -> int:
     recovered = state.recover_interrupted()
     if recovered:
         print(f"recovered interrupted tasks: {', '.join(recovered)}")
-    tasks = state.pending_for_round(args.round, retry_failed=args.retry_failed)
+    round_task_ids = [task.id for task in manifest.round(args.round).tasks]
+    selected_tasks = list(args.tasks) if args.tasks else round_task_ids
+    if len(selected_tasks) != len(set(selected_tasks)):
+        print("--tasks contains duplicates", file=sys.stderr)
+        return 2
+    invalid = [task for task in selected_tasks if task not in round_task_ids]
+    if invalid:
+        print(f"tasks do not belong to round {args.round}: {', '.join(invalid)}", file=sys.stderr)
+        return 2
+    tasks = state.pending_for_round(
+        args.round,
+        retry_failed=args.retry_failed,
+        task_ids=selected_tasks,
+    )
     outcomes: dict[str, str] = {}
     if not tasks:
         print(f"round {args.round}: nothing pending")
     for task_id in tasks:
         outcomes[task_id] = _run_one(args, manifest, state, task_id)
-    summary = state.round_summary(args.round)
+    summary = state.round_summary(args.round, task_ids=selected_tasks)
     summary["outcomes_this_run"] = outcomes
     report_path = Path(args.report).resolve() if args.report else Path(args.runtime_root).resolve() / "reports" / f"round-{args.round}.json"
     atomic_write_json(report_path, summary)
@@ -276,6 +293,8 @@ def cmd_run_round(args: argparse.Namespace) -> int:
     print(f"ROUND_REPORT={report_path}")
     print(f"ROUND_REPORT_MARKDOWN={markdown_path}")
     print(f"ROUND_COUNTS={json.dumps(summary['counts'], sort_keys=True)}")
+    complete = summary["counts"].get("succeeded", 0) == len(selected_tasks)
+    print(f"ROUND_COMPLETE={'yes' if complete else 'no'}")
     return 3 if any(value == "failed" for value in outcomes.values()) else 0
 
 
@@ -393,6 +412,10 @@ def add_run_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--asset-manifest-dir", default=str(DEFAULT_ASSET_MANIFEST_DIR))
     parser.add_argument("--asset-source-root")
     parser.add_argument("--asset-receipt-root", required=True)
+    parser.add_argument(
+        "--prepare-lock",
+        help="cross-process lock file used while MLS prepares shared packages",
+    )
     parser.add_argument("--execute", action="store_true", help="actually run; without this flag only print the command")
 
 
@@ -422,6 +445,7 @@ def build_parser() -> argparse.ArgumentParser:
     config = commands.add_parser("write-config")
     config.add_argument("--output", required=True)
     config.add_argument("--save-path", required=True)
+    config.add_argument("--api-base", default=DEFAULT_LLMROUTER_BASE_URL)
     config.add_argument("--force", action="store_true")
     config.set_defaults(func=cmd_write_config)
 
@@ -466,6 +490,11 @@ def build_parser() -> argparse.ArgumentParser:
     add_run_args(round_parser)
     round_parser.add_argument("--round", type=int, choices=range(1, 6), required=True)
     round_parser.add_argument("--retry-failed", action="store_true")
+    round_parser.add_argument(
+        "--tasks",
+        nargs="+",
+        help="explicit task ids to run; every task must belong to --round",
+    )
     round_parser.add_argument("--report")
     round_parser.set_defaults(func=cmd_run_round)
 

@@ -42,3 +42,14 @@ class StateTests(unittest.TestCase):
             self.assertEqual("preflight_blocked", item["status"])
             self.assertEqual(0, item["attempts"])
             self.assertIn(task, state.pending_for_round(1, retry_failed=False))
+
+    def test_round_selection_only_returns_and_reports_explicit_tasks(self):
+        manifest = load_manifest(ROOT / "manifests" / "lite30.json")
+        selected = [task.id for task in manifest.round(1).tasks[:2]]
+        with case_directory() as temp:
+            state = SuiteState(temp / "state.json", manifest)
+            self.assertEqual(
+                selected,
+                state.pending_for_round(1, retry_failed=False, task_ids=selected),
+            )
+            self.assertEqual(selected, list(state.round_summary(1, selected)["tasks"]))

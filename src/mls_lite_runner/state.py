@@ -95,20 +95,33 @@ class SuiteState:
         item["last_error"] = error
         self._save(value)
 
-    def pending_for_round(self, round_id: int, *, retry_failed: bool) -> list[str]:
+    def pending_for_round(
+        self,
+        round_id: int,
+        *,
+        retry_failed: bool,
+        task_ids: list[str] | None = None,
+    ) -> list[str]:
         value = self.initialize()
         allowed = {"pending", "preflight_blocked"}
         if retry_failed:
             allowed.add("failed")
+        selected = set(task_ids) if task_ids is not None else None
         return [
             task.id
             for task in self.manifest.round(round_id).tasks
-            if value["tasks"][task.id]["status"] in allowed
+            if (selected is None or task.id in selected)
+            and value["tasks"][task.id]["status"] in allowed
         ]
 
-    def round_summary(self, round_id: int) -> dict[str, Any]:
+    def round_summary(self, round_id: int, task_ids: list[str] | None = None) -> dict[str, Any]:
         value = self.initialize()
-        tasks = {task.id: value["tasks"][task.id] for task in self.manifest.round(round_id).tasks}
+        selected = set(task_ids) if task_ids is not None else None
+        tasks = {
+            task.id: value["tasks"][task.id]
+            for task in self.manifest.round(round_id).tasks
+            if selected is None or task.id in selected
+        }
         counts: dict[str, int] = {}
         for item in tasks.values():
             counts[item["status"]] = counts.get(item["status"], 0) + 1
