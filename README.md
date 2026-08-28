@@ -7,7 +7,7 @@
 
 MLS-Bench仍保存在自己的仓库中。接入只修改MLS的CLI注册入口，使其从外部 `mls_agent` 包导入Agent；不再复制Agent文件进MLS，也不使用CPU模型controller或 `QueueProxyModel`。
 
-Agent迭代使用完整release胶囊隔离。v003不修改平台现有MLS、Agent或环境；v001/v002保留为历史记录。旧v003标签曾误指向与v002相同的提交，按本项目当前发布决定删除并重新创建为修正后的v003。
+Agent迭代使用release源码胶囊隔离，宿主Python依赖由共享 `mlsbench-lite-agent` venv统一维护。共享环境可修改，但每次修改必须加独占锁、保存前后快照、登记消费者和事务；运行作业持共享锁，防止五轮运行期间环境变化。v001/v002保留为历史记录，v003标签按当前修正提交更新。
 
 ## 已绑定的版本和本地预检
 
@@ -41,8 +41,8 @@ code/mls-lite-runner-v003/                 完整、可整体替换的release
 ├── deps/MLS-Bench/                        release专用MLS副本
 ├── deps/mini-swe-agent-v2.4.6/            release专用上游Agent依赖
 └── runtime/
-    ├── env/                               release专用Python环境
     ├── config/miniswe_bash.yaml           API smoke无密钥配置
+    ├── records/environment-receipt.json   v003使用共享环境的消费者凭据
     ├── records/PREPARE_RELEASE_OK          原子写入的完整安装标记
     ├── rounds/round-N/config/              每轮独立无密钥配置
     ├── rounds/round-N/state.json           每轮独立状态
@@ -60,7 +60,7 @@ model_class: litellm
 模型名由运行参数提供。应传入本地已验证的真实LiteLLM模型标识；在确认前不要把“deepseekflash”擅自转换成其他名字。
 配置同时写入 `api_base: "http://106.15.124.164:4000/v1"`；平台入口还会显式执行 `export LLMROUTER_BASE_URL="http://106.15.124.164:4000/v1"`。
 
-修正后的v003不再假设CPU镜像提供Conda。它依次检查已有的 `mlsbench-lite-agent-v001` venv、无后缀旧venv以及系统Python，要求Python >=3.10且包含venv/ensurepip，然后使用 `python -m venv --copies` 创建release专用环境。MLS-Bench和mini-SWE v2.4.6的上游最低要求均为Python 3.10；旧探针错误地额外要求3.11，导致已探测到的3.10.12 venv被拒绝。旧venv只作为bootstrap解释器，不会被安装或修改。若准备未完成，缺少 `records/PREPARE_RELEASE_OK` 会阻止任何GPU作业运行。
+v003固定使用 `/runtime/envs/mlsbench-lite-agent/bin/python`，要求Python >=3.10及pip可用。MLS、mini-SWE和runner源码不做editable安装，而由release专用PYTHONPATH选择；共享venv只提供公共依赖。准备过程先保存baseline和事务前快照，若依赖已齐则不修改；若缺失，只生成pip dry-run计划并停止，必须显式传入 `-AllowEnvironmentChange` 才在独占锁内安装并保存事务后快照。环境总账位于 `/runtime/env-registry/mlsbench-lite-agent`，缺少环境凭据或 `PREPARE_RELEASE_OK` 会阻止GPU作业。
 
 ## 单题真实链路
 
@@ -153,8 +153,8 @@ git diff --binary
 
 ## 平台脚本（当前仅本地准备，尚未执行）
 
-- `scripts/submit-bootstrap-probe.ps1`：默认在最终运行目标4090镜像中探测旧venv和系统Python，把选择结果写入项目盘；也保留 `-Profile cpu` 供诊断。
-- `scripts/submit-prepare-release.ps1`：默认用单卡4090下载完整v003胶囊，以旧venv作为bootstrap创建release独立环境，避免CPU/GPU镜像间的Python基础路径和动态库差异；随后应用并记录可逆MLS注册补丁，生成完成标记和五组独立config/state。未完成的同一v003可在校验Git版本、依赖仓库、venv和补丁状态后安全续装。
+- `scripts/submit-shared-env-probe.ps1`：默认在最终4090镜像中检查共享venv的Python、pip、pip check、空间和关键导入，只写探测报告。
+- `scripts/submit-prepare-release.ps1`：默认用单卡4090下载完整v003源码胶囊，应用并记录可逆MLS注册补丁，然后审计共享环境。依赖齐全时零环境修改；缺依赖时生成计划并停止，只有显式 `-AllowEnvironmentChange` 才执行有事务记录的配置。完成后生成环境凭据、完整标记和五组独立config/state。
 - `scripts/submit-4090-smoke.ps1`：验证指定数量4090、联网、Docker和Python导入。
 - `scripts/submit-api-smoke.ps1`：在单卡4090上用同一配置发出一次最小模型请求，只报告成功与否，不打印回复或密钥。
 - `scripts/submit-run-task.ps1`：按manifest为指定Lite题申请对应4090卡数，执行真实单题。

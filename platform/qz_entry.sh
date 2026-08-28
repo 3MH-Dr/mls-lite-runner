@@ -8,6 +8,10 @@ LLMROUTER_BASE_URL_VALUE="http://106.15.124.164:4000/v1"
 die() { echo "ERROR: $*" >&2; exit 2; }
 on_error() {
     local status=$?
+    if [[ -n "${ENV_STATUS_FILE:-}" && -f "$ENV_STATUS_FILE" && "$(<"$ENV_STATUS_FILE")" == UPDATING ]]; then
+        printf 'FAILED\n' > "$ENV_STATUS_FILE.tmp.$$" || true
+        mv "$ENV_STATUS_FILE.tmp.$$" "$ENV_STATUS_FILE" || true
+    fi
     echo "QZ_ENTRY_FAILED action=${ACTION:-unknown} line=${BASH_LINENO[0]:-unknown} exit=$status" >&2
     exit "$status"
 }
@@ -25,7 +29,12 @@ set_release_paths() {
     RUNNER="$ROOT/code/mls-lite-runner-$RELEASE"
     MLS="$RUNNER/deps/MLS-Bench"
     AGENT="$RUNNER/deps/mini-swe-agent-$EXPECTED_MINISWE_VERSION"
-    PYTHON="$RUNNER/runtime/env/bin/python"
+    SHARED_ENV="$ROOT/runtime/envs/mlsbench-lite-agent"
+    PYTHON="$SHARED_ENV/bin/python"
+    ENV_REGISTRY="$ROOT/runtime/env-registry/mlsbench-lite-agent"
+    ENV_STATUS_FILE="$ENV_REGISTRY/status"
+    ENV_LOCK="$ROOT/runtime/locks/mlsbench-lite-agent.lock"
+    ENV_RECEIPT="$RUNNER/runtime/records/environment-receipt.json"
     BASE_CONFIG="$RUNNER/runtime/config/miniswe_bash.yaml"
     READY_MARKER="$RUNNER/runtime/records/PREPARE_RELEASE_OK"
     LOCK="$RUNNER/runtime/locks/mls-prepare.lock"
@@ -33,13 +42,26 @@ set_release_paths() {
 
 round_root() { printf '%s\n' "$RUNNER/runtime/rounds/round-$1"; }
 round_config() { printf '%s\n' "$(round_root "$1")/config/miniswe_bash.yaml"; }
+release_pythonpath() { printf '%s\n' "$RUNNER/src:$MLS/src:$AGENT/src"; }
+
+require_shared_python() {
+    [[ -x "$PYTHON" ]] || die "shared environment Python is missing: $PYTHON"
+    PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -c \
+        'import sys; assert sys.version_info >= (3, 10), sys.version; print("SHARED_PYTHON=" + sys.executable); print("SHARED_VERSION=" + sys.version.split()[0])'
+    PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m pip --version
+}
 
 require_release() {
     set_release_paths "$1"
     [[ -d "$RUNNER/.git" ]] || die "runner is missing: $RUNNER"
     [[ -d "$MLS/.git" ]] || die "release MLS repository is missing: $MLS"
     [[ -d "$AGENT/.git" ]] || die "release mini-SWE repository is missing: $AGENT"
-    [[ -x "$PYTHON" ]] || die "release Python is missing: $PYTHON"
+    require_shared_python
+    [[ -f "$ENV_RECEIPT" ]] || die "shared environment receipt is missing: $ENV_RECEIPT"
+    [[ -f "$ENV_STATUS_FILE" ]] || die "shared environment status is missing"
+    [[ "$(<"$ENV_STATUS_FILE")" == READY ]] || die "shared environment is not READY"
+    exec 8>"$ENV_LOCK"
+    flock -s -n 8 || die "shared environment is being modified"
     [[ -f "$BASE_CONFIG" ]] || die "release base config is missing: $BASE_CONFIG"
     [[ -f "$READY_MARKER" ]] || die "release is incomplete; marker is missing: $READY_MARKER"
     local round
@@ -49,78 +71,118 @@ require_release() {
     done
 }
 
-python_is_bootstrap_compatible() {
-    local candidate="$1"
-    [[ -x "$candidate" ]] || return 1
-    "$candidate" -c 'import ensurepip, sys, venv; assert sys.version_info >= (3, 10), sys.version' >/dev/null 2>&1
-}
-
-bootstrap_candidates() {
-    printf '%s\n' \
-        "$ROOT/runtime/envs/mlsbench-lite-agent-v001/bin/python" \
-        "$ROOT/runtime/envs/mlsbench-lite-agent/bin/python"
-    local command_name candidate
-    for command_name in python3.11 python3.10 python3 python; do
-        candidate="$(command -v "$command_name" 2>/dev/null || true)"
-        [[ -n "$candidate" ]] && printf '%s\n' "$candidate"
-    done
-}
-
-select_bootstrap_python() {
-    local requested="${1:-auto}" candidate
-    if [[ "$requested" != auto ]]; then
-        [[ "$requested" == "$ROOT"/* ]] || die "explicit bootstrap Python must stay under project root"
-        python_is_bootstrap_compatible "$requested" || die "bootstrap Python is missing, below 3.10, or lacks venv: $requested"
-        printf '%s\n' "$requested"
-        return
+snapshot_environment() {
+    local destination="$1" temporary="$1.tmp.$$"
+    rm -rf -- "$temporary"
+    mkdir -p "$temporary"
+    PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m pip list --format=json > "$temporary/pip-list.json"
+    PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m pip list --editable --format=json > "$temporary/editable-projects.json"
+    if PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m pip check > "$temporary/pip-check.txt" 2>&1; then
+        printf 'ok\n' > "$temporary/pip-check.status"
+    else
+        printf 'failed\n' > "$temporary/pip-check.status"
     fi
-    while IFS= read -r candidate; do
-        if python_is_bootstrap_compatible "$candidate"; then
-            printf '%s\n' "$candidate"
-            return
-        fi
-    done < <(bootstrap_candidates)
-    die "no Python >=3.10 with venv support; checked existing MLS venvs and system python commands"
+    PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -c \
+        'import json, platform, sys; print(json.dumps({"executable": sys.executable, "python": platform.python_version(), "prefix": sys.prefix}, sort_keys=True))' \
+        > "$temporary/python.json"
+    sha256sum "$temporary/pip-list.json" "$temporary/editable-projects.json" "$temporary/python.json" \
+        > "$temporary/fingerprint.sha256"
+    rm -rf -- "$destination"
+    mv "$temporary" "$destination"
 }
 
-probe_bootstrap() {
+probe_shared_environment() {
     require_root "$1"
-    local report="$ROOT/code/mls-lite-python-bootstrap-probe.txt"
-    local temporary="$report.tmp.$$" candidate version selected=""
-    mkdir -p "$ROOT/code"
+    set_release_paths "shared-probe"
+    local report="$ROOT/code/mls-lite-shared-env-probe.txt" temporary="$report.tmp.$$" module
+    mkdir -p "$ROOT/code" "$ROOT/runtime/locks"
     : > "$temporary"
-    while IFS= read -r candidate; do
-        printf 'CANDIDATE=%s\n' "$candidate" >> "$temporary"
-        if [[ -x "$candidate" ]]; then
-            version="$($candidate -c 'import sys; print(sys.version.replace("\n", " "))' 2>&1 || true)"
-            printf 'VERSION=%s\n' "$version" >> "$temporary"
-            if python_is_bootstrap_compatible "$candidate"; then
-                printf 'COMPATIBLE=yes\n' >> "$temporary"
-                [[ -n "$selected" ]] || selected="$candidate"
-            else
-                printf 'COMPATIBLE=no\n' >> "$temporary"
-            fi
+    {
+        printf 'SHARED_ENV=%s\n' "$SHARED_ENV"
+        du -sh "$SHARED_ENV" 2>/dev/null || true
+        require_shared_python
+        if PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m pip check; then
+            printf 'PIP_CHECK=ok\n'
         else
-            printf 'EXISTS=no\n' >> "$temporary"
+            printf 'PIP_CHECK=failed\n'
         fi
-    done < <(bootstrap_candidates)
-    printf 'SELECTED=%s\n' "${selected:-NONE}" >> "$temporary"
+        for module in yaml numpy mlsbench minisweagent; do
+            if PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -c "import $module" >/dev/null 2>&1; then
+                printf 'IMPORT_%s=yes\n' "$module"
+            else
+                printf 'IMPORT_%s=no\n' "$module"
+            fi
+        done
+        printf 'SHARED_ENV_BASE_OK\n'
+    } 2>&1 | tee "$temporary"
     mv "$temporary" "$report"
-    cat "$report"
-    [[ -n "$selected" ]] || die "no compatible bootstrap Python; see $report"
-    echo BOOTSTRAP_PROBE_OK
+    echo "PROBE_REPORT=$report"
 }
 
-create_release_env() {
-    local requested_bootstrap="${1:-auto}" bootstrap
-    [[ ! -e "$RUNNER/runtime/env" ]] || die "refusing to reuse partial release env: $RUNNER/runtime/env"
-    bootstrap="$(select_bootstrap_python "$requested_bootstrap")"
-    printf '%s\n' "$bootstrap" > "$RUNNER/runtime/records/bootstrap-python.path"
-    "$bootstrap" -c 'import sys; print(sys.executable); print(sys.version)'
-    "$bootstrap" -m venv --copies "$RUNNER/runtime/env"
-    [[ -x "$PYTHON" ]] || die "venv creation did not produce $PYTHON"
-    "$PYTHON" -c 'import sys; assert sys.version_info >= (3, 10), sys.version; print(sys.version)'
-    "$PYTHON" -m ensurepip --upgrade
+configure_shared_environment() {
+    local allow_change="$1" transaction_id transaction changed="none" pythonpath
+    [[ "$allow_change" =~ ^[01]$ ]] || die "allow environment change must be 0 or 1"
+    require_shared_python
+    command -v flock >/dev/null || die "flock is required for shared environment safety"
+    mkdir -p "$ROOT/runtime/locks" "$ENV_REGISTRY/baseline" "$ENV_REGISTRY/transactions" "$ENV_REGISTRY/consumers"
+    exec 9>"$ENV_LOCK"
+    flock -x 9
+    printf 'UPDATING\n' > "$ENV_STATUS_FILE.tmp.$$"
+    mv "$ENV_STATUS_FILE.tmp.$$" "$ENV_STATUS_FILE"
+    if [[ ! -f "$ENV_REGISTRY/baseline/pip-list.json" ]]; then
+        snapshot_environment "$ENV_REGISTRY/baseline"
+    fi
+    transaction_id="$RELEASE-$(git -C "$RUNNER" rev-parse --short=12 HEAD)-${QZ_RUN_DIR##*/}"
+    [[ "$transaction_id" =~ ^[A-Za-z0-9._-]+$ ]] || die "unsafe environment transaction id"
+    transaction="$ENV_REGISTRY/transactions/$transaction_id"
+    [[ ! -e "$transaction" ]] || die "environment transaction already exists: $transaction"
+    mkdir -p "$transaction"
+    snapshot_environment "$transaction/before"
+    pythonpath="$(release_pythonpath)"
+    if ! PYTHONPATH="$pythonpath" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -c \
+        'import mlsbench, mls_agent, mls_lite_runner, minisweagent, numpy, yaml'; then
+        changed="packages-installed"
+        PIP_CACHE_DIR="$ROOT/runtime/cache/pip" PIP_DISABLE_PIP_VERSION_CHECK=1 \
+            PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m pip install \
+            --dry-run --report "$transaction/pip-plan.json" --upgrade-strategy only-if-needed \
+            "${MLS}[agent]" "$AGENT" "$RUNNER" numpy
+        "$PYTHON" -c \
+            'import json,sys; data=json.load(open(sys.argv[1],encoding="utf-8")); rows=sorted({"{}=={}".format(x["metadata"]["name"],x["metadata"]["version"]) for x in data.get("install",[])}); print("\n".join(rows))' \
+            "$transaction/pip-plan.json" > "$transaction/resolved-constraints.txt"
+        if [[ "$allow_change" != 1 ]]; then
+            printf 'NEEDS_CHANGE\n' > "$ENV_STATUS_FILE.tmp.$$"
+            mv "$ENV_STATUS_FILE.tmp.$$" "$ENV_STATUS_FILE"
+            echo "ENVIRONMENT_PLAN=$transaction/pip-plan.json"
+            die "shared environment needs packages; inspect the plan and rerun with allow-change=1"
+        fi
+        PIP_CACHE_DIR="$ROOT/runtime/cache/pip" PIP_DISABLE_PIP_VERSION_CHECK=1 \
+            PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m pip install \
+            --report "$transaction/pip-install.json" --upgrade-strategy only-if-needed \
+            --constraint "$transaction/resolved-constraints.txt" \
+            "${MLS}[agent]" "$AGENT" "$RUNNER" numpy
+    fi
+    PYTHONPATH="$pythonpath" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -c \
+        'import mlsbench, mls_agent, mls_lite_runner, minisweagent, numpy, yaml; print("SHARED_ENV_IMPORTS_OK")'
+    PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m pip check
+    snapshot_environment "$transaction/after"
+    local runner_commit mls_commit fingerprint consumer temporary
+    runner_commit="$(git -C "$RUNNER" rev-parse HEAD)"
+    mls_commit="$(git -C "$MLS" rev-parse HEAD)"
+    fingerprint="$(sha256sum "$transaction/after/pip-list.json" | awk '{print $1}')"
+    consumer="$ENV_REGISTRY/consumers/mls-lite-runner-$RELEASE.json"
+    temporary="$consumer.tmp.$$"
+    "$PYTHON" -c \
+        'import json,sys; keys=("consumer","shared_env","python","runner_commit","mls_commit","miniswe_version","transaction","change","package_fingerprint"); print(json.dumps(dict(zip(keys,sys.argv[1:])),indent=2,sort_keys=True))' \
+        "mls-lite-runner-$RELEASE" "$SHARED_ENV" "$PYTHON" "$runner_commit" "$mls_commit" \
+        "$EXPECTED_MINISWE_VERSION" "$transaction_id" "$changed" "$fingerprint" > "$temporary"
+    mv "$temporary" "$consumer"
+    cp "$consumer" "$ENV_RECEIPT.tmp.$$"
+    mv "$ENV_RECEIPT.tmp.$$" "$ENV_RECEIPT"
+    printf 'READY\n' > "$ENV_STATUS_FILE.tmp.$$"
+    mv "$ENV_STATUS_FILE.tmp.$$" "$ENV_STATUS_FILE"
+    echo "ENVIRONMENT_TRANSACTION=$transaction_id"
+    echo "ENVIRONMENT_CHANGE=$changed"
+    echo "ENVIRONMENT_RECEIPT=$ENV_RECEIPT"
 }
 
 set_api_environment() {
@@ -148,12 +210,13 @@ check_gpu_host() {
 
 prepare_release() {
     require_root "$1"
-    local github_url="$2" git_ref="$3" release="$4" expected_mls_commit="$5" mini_version="$6" bootstrap_python="${7:-auto}"
+    local github_url="$2" git_ref="$3" release="$4" expected_mls_commit="$5" mini_version="$6" allow_env_change="${7:-0}"
     [[ "$github_url" =~ ^https://github.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(.git)?$ ]] || die "unsafe GitHub URL"
     [[ "$git_ref" =~ ^[A-Za-z0-9._/-]+$ ]] || die "unsafe Git ref"
     [[ "$release" =~ ^[A-Za-z0-9._-]+$ ]] || die "unsafe release id"
     [[ "$expected_mls_commit" =~ ^[0-9a-f]{40}$ ]] || die "invalid MLS commit"
     [[ "$mini_version" == "$EXPECTED_MINISWE_VERSION" ]] || die "mini-SWE must be $EXPECTED_MINISWE_VERSION"
+    [[ "$allow_env_change" =~ ^[01]$ ]] || die "allow environment change must be 0 or 1"
 
     local runner="$ROOT/code/mls-lite-runner-$release"
     mkdir -p "$ROOT/code"
@@ -167,7 +230,7 @@ prepare_release() {
         git clone --branch "$git_ref" --depth 1 "$github_url" "$runner"
     fi
     set_release_paths "$release"
-    mkdir -p "$RUNNER/deps" "$RUNNER/runtime/cache/pip" "$RUNNER/runtime/records"
+    mkdir -p "$RUNNER/deps" "$RUNNER/runtime/records" "$ROOT/runtime/cache/pip"
 
     if [[ -e "$MLS" ]]; then
         [[ -d "$MLS/.git" ]] || die "existing MLS path is not a Git repository"
@@ -183,15 +246,6 @@ prepare_release() {
     fi
     git -C "$AGENT" describe --tags --exact-match | grep -Fx "$mini_version"
 
-    if [[ -x "$PYTHON" ]]; then
-        "$PYTHON" -c 'import sys; assert sys.version_info >= (3, 10), sys.version'
-        echo "REUSE_VALID_RELEASE_ENV=$PYTHON"
-    else
-        [[ ! -e "$RUNNER/runtime/env" ]] || die "partial release env exists but has no executable Python"
-        create_release_env "$bootstrap_python"
-    fi
-    PIP_CACHE_DIR="$RUNNER/runtime/cache/pip" "$PYTHON" -m pip install --upgrade pip setuptools wheel
-
     local patch_file="$RUNNER/patches/mls-registration-clean.patch"
     sha256sum "$patch_file" > "$RUNNER/runtime/records/registration-patch.sha256"
     if [[ ! -f "$RUNNER/runtime/records/mls-status-before.txt" ]]; then
@@ -206,15 +260,13 @@ prepare_release() {
     fi
     git -C "$MLS" diff --binary > "$RUNNER/runtime/records/mls-registration.patch"
 
-    PIP_CACHE_DIR="$RUNNER/runtime/cache/pip" "$PYTHON" -m pip install -e "${MLS}[agent]"
-    PIP_CACHE_DIR="$RUNNER/runtime/cache/pip" "$PYTHON" -m pip install -e "$AGENT" numpy
-    PIP_CACHE_DIR="$RUNNER/runtime/cache/pip" "$PYTHON" -m pip install -e "$RUNNER"
-    "$PYTHON" -m pip check
+    configure_shared_environment "$allow_env_change"
 
     mkdir -p "$RUNNER/runtime/config" "$RUNNER/runtime/assets/receipts" "$RUNNER/runtime/rounds" "$RUNNER/runtime/locks"
-    PYTHONPATH="$RUNNER/src:$MLS/src" "$PYTHON" -m mlsbench.cli agent --help | grep -F miniswe-bash >/dev/null
-    PYTHONPATH="$RUNNER/src:$MLS/src" "$PYTHON" -m mls_lite_runner validate
-    PYTHONPATH="$RUNNER/src:$MLS/src" "$PYTHON" -m mls_lite_runner write-config \
+    local pythonpath="$(release_pythonpath)"
+    PYTHONPATH="$pythonpath" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m mlsbench.cli agent --help | grep -F miniswe-bash >/dev/null
+    PYTHONPATH="$pythonpath" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m mls_lite_runner validate
+    PYTHONPATH="$pythonpath" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m mls_lite_runner write-config \
         --output "$BASE_CONFIG" --save-path "$RUNNER/runtime/records/api-smoke" \
         --api-base "$LLMROUTER_BASE_URL_VALUE" --force
 
@@ -223,13 +275,13 @@ prepare_release() {
         root="$(round_root "$round")"
         config="$(round_config "$round")"
         mkdir -p "$root/config" "$root/records"
-        PYTHONPATH="$RUNNER/src:$MLS/src" "$PYTHON" -m mls_lite_runner write-config \
+        PYTHONPATH="$pythonpath" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m mls_lite_runner write-config \
             --output "$config" --save-path "$root/records" --api-base "$LLMROUTER_BASE_URL_VALUE" --force
-        PYTHONPATH="$RUNNER/src:$MLS/src" "$PYTHON" -m mls_lite_runner init-state \
+        PYTHONPATH="$pythonpath" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m mls_lite_runner init-state \
             --state "$root/state.json" >/dev/null
         grep -Fx "      api_base: \"$LLMROUTER_BASE_URL_VALUE\"" "$config" >/dev/null
     done
-    PYTHONPATH="$RUNNER/src:$MLS/src" "$PYTHON" -c \
+    PYTHONPATH="$pythonpath" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -c \
         'import mlsbench, mls_agent, minisweagent, numpy, yaml; print("HOST_IMPORTS_OK")'
 
     local marker_tmp="$READY_MARKER.tmp.$$"
@@ -239,6 +291,8 @@ prepare_release() {
         printf 'mls_commit=%s\n' "$(git -C "$MLS" rev-parse HEAD)"
         printf 'miniswe_version=%s\n' "$mini_version"
         printf 'python=%s\n' "$($PYTHON -c 'import sys; print(sys.version.split()[0])')"
+        printf 'shared_env=%s\n' "$SHARED_ENV"
+        printf 'environment_receipt=%s\n' "$ENV_RECEIPT"
         printf 'api_base=%s\n' "$LLMROUTER_BASE_URL_VALUE"
     } > "$marker_tmp"
     mv "$marker_tmp" "$READY_MARKER"
@@ -249,7 +303,7 @@ prepare_release() {
 
 host_smoke() {
     require_root "$1"; require_release "$2"; check_gpu_host "$3"
-    PYTHONPATH="$RUNNER/src:$MLS/src" "$PYTHON" -c \
+    PYTHONPATH="$(release_pythonpath)" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -c \
         'import mlsbench, mls_agent, minisweagent, numpy; print("PYTHON_IMPORTS_OK")'
     echo HOST_SMOKE_OK
 }
@@ -260,7 +314,7 @@ api_smoke() {
     set_api_environment "$api_key_env" "$api_key"
     nvidia-smi -L
     curl -sS -I --connect-timeout 10 --max-time 20 https://github.com/ >/dev/null
-    PYTHONPATH="$RUNNER/src:$MLS/src" "$PYTHON" -m mls_lite_runner api-smoke \
+    PYTHONPATH="$(release_pythonpath)" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m mls_lite_runner api-smoke \
         --config "$BASE_CONFIG" --model "$model"
     echo API_JOB_OK
 }
@@ -273,9 +327,9 @@ run_task() {
     set_api_environment "$api_key_env" "$api_key"
     check_gpu_host "$expected_gpus"
     local root="$(round_root "$round")" config="$(round_config "$round")"
-    PYTHONPATH="$RUNNER/src:$MLS/src" "$PYTHON" -m mls_lite_runner doctor \
+    PYTHONPATH="$(release_pythonpath)" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m mls_lite_runner doctor \
         --round "$round" --mls-root "$MLS" --agent-root "$RUNNER" --python "$PYTHON"
-    PYTHONPATH="$RUNNER/src:$MLS/src" "$PYTHON" -m mls_lite_runner run-task "$task" \
+    PYTHONPATH="$(release_pythonpath)" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m mls_lite_runner run-task "$task" \
         --mls-root "$MLS" --python "$PYTHON" --config "$config" --model "$model" \
         --runtime-root "$root/execution" --state "$root/state.json" \
         --network-mode online --preflight-report "$RUNNER/reports/lite30-preflight.json" \
@@ -296,9 +350,9 @@ run_round() {
     local retry_args=() tasks=()
     IFS=',' read -r -a tasks <<< "$task_csv"
     [[ "$retry_failed" == 1 ]] && retry_args+=(--retry-failed)
-    PYTHONPATH="$RUNNER/src:$MLS/src" "$PYTHON" -m mls_lite_runner doctor \
+    PYTHONPATH="$(release_pythonpath)" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m mls_lite_runner doctor \
         --round "$round" --mls-root "$MLS" --agent-root "$RUNNER" --python "$PYTHON"
-    PYTHONPATH="$RUNNER/src:$MLS/src" "$PYTHON" -m mls_lite_runner run-round \
+    PYTHONPATH="$(release_pythonpath)" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m mls_lite_runner run-round \
         --round "$round" --tasks "${tasks[@]}" --mls-root "$MLS" --python "$PYTHON" \
         --config "$config" --model "$model" --runtime-root "$root/execution" \
         --state "$root/state.json" --report "$root/report.json" \
@@ -324,14 +378,14 @@ main() {
     ACTION="${1:-}"
     shift || true
     case "$ACTION" in
-        probe-bootstrap) probe_bootstrap "$@" ;;
+        probe-shared-env) probe_shared_environment "$@" ;;
         prepare-release) prepare_release "$@" ;;
         host-smoke) host_smoke "$@" ;;
         api-smoke) api_smoke "$@" ;;
         run-task) run_task "$@" ;;
         run-round) run_round "$@" ;;
         report) report_round "$@" ;;
-        *) die "usage: qz_entry.sh {probe-bootstrap|prepare-release|host-smoke|api-smoke|run-task|run-round|report} ..." ;;
+        *) die "usage: qz_entry.sh {probe-shared-env|prepare-release|host-smoke|api-smoke|run-task|run-round|report} ..." ;;
     esac
 }
 

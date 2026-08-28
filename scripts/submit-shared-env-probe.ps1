@@ -6,9 +6,9 @@ param(
 )
 $ErrorActionPreference = "Stop"
 if ($JobSuffix -notmatch '^[A-Za-z0-9._-]+$') { throw "Unsafe JobSuffix" }
-$job = "mr3mh-bootstrap-probe-$Profile-$JobSuffix"
+$job = "mr3mh-shared-env-probe-$Profile-$JobSuffix"
 $entry = "$Root/code/qz_entry.sh"
-$inner = "bash $entry probe-bootstrap $Root"
+$inner = "bash $entry probe-shared-env $Root"
 $resources = if ($Profile -eq "cpu") { "--profile cpu --cpu-spec 4c16g" } else { "--profile 4090 --gpus 1 --nodes 1" }
 $command = "qz-job submit $resources --name $job --minutes 10 --command '$inner'"
 if (-not $Execute) { $command; exit 0 }
