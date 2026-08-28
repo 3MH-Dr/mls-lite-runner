@@ -7,7 +7,7 @@
 
 MLS-Bench仍保存在自己的仓库中。接入只修改MLS的CLI注册入口，使其从外部 `mls_agent` 包导入Agent；不再复制Agent文件进MLS，也不使用CPU模型controller或 `QueueProxyModel`。
 
-Agent迭代使用完整release胶囊隔离。v002不修改平台现有MLS、Agent或环境；回退时继续提交旧ReleaseId即可。
+Agent迭代使用完整release胶囊隔离。v003不修改平台现有MLS、Agent或环境；v001/v002保留为历史记录。旧v003标签曾误指向与v002相同的提交，按本项目当前发布决定删除并重新创建为修正后的v003。
 
 ## 已绑定的版本和本地预检
 
@@ -36,14 +36,16 @@ MLS commit: cfd57a7e0139c72753e32e31bca593719b098717
 ## 存储和配置关系
 
 ```text
-code/mls-lite-runner-v002/                 完整、可整体替换的release
+code/mls-lite-runner-v003/                 完整、可整体替换的release
 ├── src/                                   外部Agent + AgentRun
 ├── deps/MLS-Bench/                        release专用MLS副本
 ├── deps/mini-swe-agent-v2.4.6/            release专用上游Agent依赖
 └── runtime/
     ├── env/                               release专用Python环境
-    ├── config/miniswe_bash.yaml           无密钥direct LiteLLM配置
-    ├── rounds/round-N/state.json          每轮独立状态
+    ├── config/miniswe_bash.yaml           API smoke无密钥配置
+    ├── records/PREPARE_RELEASE_OK          原子写入的完整安装标记
+    ├── rounds/round-N/config/              每轮独立无密钥配置
+    ├── rounds/round-N/state.json           每轮独立状态
     ├── rounds/round-N/execution/           workspace和日志
     ├── assets/receipts/                   资产加载凭据
     └── locks/mls-prepare.lock             五作业共享准备锁
@@ -57,6 +59,8 @@ model_class: litellm
 
 模型名由运行参数提供。应传入本地已验证的真实LiteLLM模型标识；在确认前不要把“deepseekflash”擅自转换成其他名字。
 配置同时写入 `api_base: "http://106.15.124.164:4000/v1"`；平台入口还会显式执行 `export LLMROUTER_BASE_URL="http://106.15.124.164:4000/v1"`。
+
+修正后的v003不再假设CPU镜像提供Conda。它依次检查已有的 `mlsbench-lite-agent-v001` venv、无后缀旧venv以及系统Python，要求Python >=3.10且包含venv/ensurepip，然后使用 `python -m venv --copies` 创建release专用环境。MLS-Bench和mini-SWE v2.4.6的上游最低要求均为Python 3.10；旧探针错误地额外要求3.11，导致已探测到的3.10.12 venv被拒绝。旧venv只作为bootstrap解释器，不会被安装或修改。若准备未完成，缺少 `records/PREPARE_RELEASE_OK` 会阻止任何GPU作业运行。
 
 ## 单题真实链路
 
@@ -112,7 +116,7 @@ failed
 
 所有轮次固定 `--nodes 1`。不是30题都要8卡；第2轮整体申请8卡，是因为其中 `cv-vae-loss` 的最低需求为8。`cv-dbm-sampler` peak/minimum为12/4，MLS在8张可见卡上将同组命令分wave执行，不启动第二份AgentRun。
 
-五轮可以提交成五个并发作业，共请求18张4090。每个作业内六题仍严格顺序执行；五个作业之间并行。每轮使用独立state和execution目录，共享MLS的package/data准备使用跨进程文件锁，避免并发写坏。提交前仍需用平台resources确认当时配额，并考虑8卡作业排队及API限流。
+五轮可以提交成五个并发作业，共请求18张4090。每个作业内六题仍严格顺序执行；五个作业之间并行。每轮使用独立config、state、records和execution目录，共享MLS的package/data准备使用跨进程文件锁，避免并发写坏。提交前仍需用平台resources确认当时配额，并考虑8卡作业排队、共享文件系统锁语义、4090低利用率回收及API限流。
 
 ## 本地命令
 
@@ -149,7 +153,8 @@ git diff --binary
 
 ## 平台脚本（当前仅本地准备，尚未执行）
 
-- `scripts/submit-prepare-release.ps1`：CPU一次性下载完整v002胶囊、安装环境、应用并记录可逆MLS注册补丁、生成配置及五个独立state。
+- `scripts/submit-bootstrap-probe.ps1`：默认在最终运行目标4090镜像中探测旧venv和系统Python，把选择结果写入项目盘；也保留 `-Profile cpu` 供诊断。
+- `scripts/submit-prepare-release.ps1`：默认用单卡4090下载完整v003胶囊，以旧venv作为bootstrap创建release独立环境，避免CPU/GPU镜像间的Python基础路径和动态库差异；随后应用并记录可逆MLS注册补丁，生成完成标记和五组独立config/state。未完成的同一v003可在校验Git版本、依赖仓库、venv和补丁状态后安全续装。
 - `scripts/submit-4090-smoke.ps1`：验证指定数量4090、联网、Docker和Python导入。
 - `scripts/submit-api-smoke.ps1`：在单卡4090上用同一配置发出一次最小模型请求，只报告成功与否，不打印回复或密钥。
 - `scripts/submit-run-task.ps1`：按manifest为指定Lite题申请对应4090卡数，执行真实单题。

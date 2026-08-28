@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory = $true)][string]$ApiKey,
     [string]$Model = "deepseekflash",
     [string]$ApiKeyEnv = "DEEPSEEK_API_KEY",
-    [string]$ReleaseId = "v002",
+    [string]$ReleaseId = "v003",
     [string]$JobSuffix = "001",
     [string]$Root = "/inspire/hdd/project/long-working-agent/ky26299",
     [switch]$Execute
