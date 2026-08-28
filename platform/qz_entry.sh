@@ -94,7 +94,9 @@ snapshot_environment() {
 probe_shared_environment() {
     require_root "$1"
     set_release_paths "shared-probe"
-    local report="$ROOT/code/mls-lite-shared-env-probe.txt" temporary="$report.tmp.$$" module
+    local report temporary module
+    report="$ROOT/code/mls-lite-shared-env-probe.txt"
+    temporary="$report.tmp.$$"
     mkdir -p "$ROOT/code" "$ROOT/runtime/locks"
     : > "$temporary"
     {
