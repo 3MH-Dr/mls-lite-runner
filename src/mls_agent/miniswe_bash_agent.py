@@ -8,6 +8,7 @@ from typing import Any
 from mlsbench.agent.base import BaseAgent
 from mls_agent.miniswe_bash_environment import MiniSWEBashEnvironment
 from mls_agent.selection import select_agent_image_package
+from mls_agent.typing_compat import enable_python310_typing_compat
 
 
 SYSTEM_TEMPLATE = """You are an ML research coding agent solving one MLS-Bench task.
@@ -112,6 +113,7 @@ class MiniSWEBashAgent(BaseAgent):
     def run(self, resume: bool = False) -> dict:
         if resume:
             raise NotImplementedError("--resume is not supported by agent-type miniswe-bash")
+        enable_python310_typing_compat()
         from minisweagent.agents.default import DefaultAgent
         from minisweagent.models import get_model
 

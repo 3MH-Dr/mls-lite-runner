@@ -10,6 +10,8 @@ from pathlib import Path
 
 import yaml
 
+from mls_agent.typing_compat import enable_python310_typing_compat
+
 from .assets import prepare_task_assets, unload_task_assets
 from .config import DEFAULT_LLMROUTER_BASE_URL, render_miniswe_config
 from .doctor import Check, inspect_task, run_doctor
@@ -92,6 +94,7 @@ def cmd_api_smoke(args: argparse.Namespace) -> int:
     if model_config.get("model_class") != "litellm":
         print("API smoke requires model_class: litellm", file=sys.stderr)
         return 2
+    enable_python310_typing_compat()
     from minisweagent.models import get_model
 
     model = get_model(args.model, config=model_config)
