@@ -26,6 +26,6 @@ $retry = if ($RetryFailed) { 1 } else { 0 }
 $job = "mr3mh-mls-$ReleaseId-r$Round-$JobSuffix"
 $entry = "$Root/code/mls-lite-runner-$ReleaseId/platform/qz_entry.sh"
 $inner = "bash $entry run-round $Root $ReleaseId $Round $Model $gpus $ApiKeyEnv $ApiKey $taskCsv $retry"
-$command = "qz-job submit --profile 4090 --gpus $gpus --nodes 1 --name $job --minutes $Minutes --command '$inner'"
+$command = "qz-job submit --profile 4090 --docker --gpus $gpus --nodes 1 --name $job --minutes $Minutes --command '$inner'"
 if (-not $Execute) { $command; exit 0 }
 ssh qz-gpu $command

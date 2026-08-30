@@ -8,6 +8,6 @@ param(
 $job = "mr3mh-report-$ReleaseId-r$Round-$JobSuffix"
 $entry = "$Root/code/mls-lite-runner-$ReleaseId/platform/qz_entry.sh"
 $inner = "bash $entry report $Root $ReleaseId $Round"
-$command = "qz-job submit --profile cpu --cpu-spec 1c4g --name $job --minutes 10 --command '$inner'"
+$command = "qz-job submit --profile cpu --cpu-spec 4c16g --name $job --minutes 10 --command '$inner'"
 if (-not $Execute) { $command; exit 0 }
 ssh qz-gpu $command

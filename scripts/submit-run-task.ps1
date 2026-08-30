@@ -19,6 +19,6 @@ $round = [int]$matches[0].id; $gpus = [int]$matches[0].platform_gpus
 $job = "mr3mh-task-$ReleaseId-$Task-$JobSuffix"
 $entry = "$Root/code/mls-lite-runner-$ReleaseId/platform/qz_entry.sh"
 $inner = "bash $entry run-task $Root $ReleaseId $Task $Model $round $gpus $ApiKeyEnv $ApiKey"
-$command = "qz-job submit --profile 4090 --gpus $gpus --nodes 1 --name $job --minutes $Minutes --command '$inner'"
+$command = "qz-job submit --profile 4090 --docker --gpus $gpus --nodes 1 --name $job --minutes $Minutes --command '$inner'"
 if (-not $Execute) { $command; exit 0 }
 ssh qz-gpu $command

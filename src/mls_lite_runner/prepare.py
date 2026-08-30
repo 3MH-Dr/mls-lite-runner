@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import hashlib
 import subprocess
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
@@ -57,10 +58,36 @@ def _exclusive_file_lock(path: Path | None) -> Iterator[None]:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
-def execute_commands(commands: list[list[str]], cwd: Path, lock_path: Path | None = None) -> None:
-    with _exclusive_file_lock(lock_path):
-        for command in commands:
-            subprocess.run(command, cwd=cwd, check=True)
+def execute_commands(
+    commands: list[list[str]],
+    cwd: Path,
+    lock_path: Path | None = None,
+    *,
+    attempts: int = 1,
+    retry_delays: tuple[float, ...] = (20.0, 40.0),
+) -> None:
+    """Run preparation commands, optionally retrying transient failures.
+
+    The lock is released between attempts so one unstable registry connection
+    cannot block other round jobs while it waits to retry.
+    """
+    if attempts < 1:
+        raise ValueError("attempts must be at least 1")
+    for command in commands:
+        for attempt in range(attempts):
+            try:
+                with _exclusive_file_lock(lock_path):
+                    subprocess.run(command, cwd=cwd, check=True)
+                break
+            except subprocess.CalledProcessError:
+                if attempt + 1 >= attempts:
+                    raise
+                delay = retry_delays[min(attempt, len(retry_delays) - 1)] if retry_delays else 0.0
+                print(
+                    f"PREPARE_RETRY attempt={attempt + 2}/{attempts} delay={delay:g}s",
+                    flush=True,
+                )
+                time.sleep(delay)
 
 
 def _sha256(path: Path) -> str:

@@ -188,6 +188,8 @@ def _ensure_task_ready(args: argparse.Namespace, manifest: Manifest, mls_root: P
                     [command],
                     mls_root,
                     Path(args.prepare_lock).resolve() if args.prepare_lock else None,
+                    attempts=3,
+                    retry_delays=(20.0, 40.0),
                 )
             except Exception as exc:
                 issues.append(f"PACKAGE_PREP_FAILED: {package}: {type(exc).__name__}: {exc}")
@@ -314,7 +316,7 @@ def cmd_prepare_round(args: argparse.Namespace) -> int:
         print("--export-images requires --artifact-dir", file=sys.stderr)
         return 2
     if args.execute:
-        execute_commands(commands, mls_root)
+        execute_commands(commands, mls_root, attempts=3, retry_delays=(20.0, 40.0))
         if args.export_images:
             manifest_path = export_images(packages, Path(args.artifact_dir).resolve())
             print(f"image artifact manifest: {manifest_path}")

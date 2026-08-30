@@ -153,6 +153,10 @@ git diff --binary
 
 ## 平台脚本（当前仅本地准备，尚未执行）
 
+4090上的真实host smoke、单题和整轮作业都显式提交 `--docker`。平台在用户命令前启动daemon；日志出现 `QZ_DOCKER_READY` 后，MLS才能拉取并运行题目镜像。作业使用单节点，按manifest申请1/2/4/8卡。Agent的API请求由作业宿主进程联网发出，Agent Bash沙箱继续使用 `--network none`；无需登录实例或自行启动Docker。
+
+Docker镜像库只活在当前作业中。单题作业会在同一作业内由MLS自动补齐题包、拉取镜像并完成解题；整轮作业会在同一作业内依次准备并运行所选题。镜像拉取失败时，runner只重试题包准备（等待20/40秒，共3次），不会自动重试Agent或API。作业结束后镜像消失，但项目盘中的release、题包、数据、state、workspace和报告仍保留，因此不会丢失解题结果。
+
 - `scripts/submit-shared-env-probe.ps1`：默认在最终4090镜像中检查共享venv的Python、pip、pip check、空间和关键导入，只写探测报告。
 - `scripts/submit-prepare-release.ps1`：默认用单卡4090下载完整v003源码胶囊，应用并记录可逆MLS注册补丁，然后审计共享环境。依赖齐全时零环境修改；缺依赖时生成计划并停止，只有显式 `-AllowEnvironmentChange` 才执行有事务记录的配置。完成后生成环境凭据、完整标记和五组独立config/state。
 - `scripts/submit-4090-smoke.ps1`：验证指定数量4090、联网、Docker和Python导入。
