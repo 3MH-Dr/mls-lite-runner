@@ -62,6 +62,8 @@ model_class: litellm
 
 v003固定使用 `/runtime/envs/mlsbench-lite-agent/bin/python`，要求Python >=3.10及pip可用。MLS、mini-SWE和runner源码不做editable安装，而由release专用PYTHONPATH选择；共享venv只提供公共依赖。准备过程先保存baseline和事务前快照，若依赖已齐则不修改；若缺失，只生成pip dry-run计划并停止，必须显式传入 `-AllowEnvironmentChange` 才在独占锁内安装并保存事务后快照。环境总账位于 `/runtime/env-registry/mlsbench-lite-agent`，缺少环境凭据或 `PREPARE_RELEASE_OK` 会阻止GPU作业。
 
+4090基础镜像自带另一套PyTorch，并通过 `LD_LIBRARY_PATH` 优先暴露其 `libtorch`。release入口只对MLS/runner宿主Python子进程移除该变量，确保共享venv中的PyTorch加载自身动态库；Docker、GPU驱动和平台进程仍保留平台原环境。日志中的 `HOST_PYTHON_LINKAGE=release-isolated` 表示此隔离已生效。
+
 ## 单题真实链路
 
 ```text

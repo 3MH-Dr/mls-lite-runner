@@ -20,6 +20,13 @@ class PlatformScriptTests(unittest.TestCase):
         self.assertIn("--cpu-spec 4c16g", text)
         self.assertNotIn("--cpu-spec 1c4g", text)
 
+    def test_release_python_ignores_base_image_torch_libraries(self):
+        text = (ROOT / "platform" / "qz_entry.sh").read_text(encoding="utf-8")
+        self.assertIn("run_release_python()", text)
+        self.assertIn("env -u LD_LIBRARY_PATH", text)
+        self.assertIn("run_release_python -m mls_lite_runner run-task", text)
+        self.assertIn("run_release_python -m mls_lite_runner run-round", text)
+
 
 if __name__ == "__main__":
     unittest.main()

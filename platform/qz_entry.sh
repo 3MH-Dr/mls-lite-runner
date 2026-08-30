@@ -44,6 +44,16 @@ round_root() { printf '%s\n' "$RUNNER/runtime/rounds/round-$1"; }
 round_config() { printf '%s\n' "$(round_root "$1")/config/miniswe_bash.yaml"; }
 release_pythonpath() { printf '%s\n' "$RUNNER/src:$MLS/src:$AGENT/src"; }
 
+run_release_python() {
+    local pythonpath
+    pythonpath="$(release_pythonpath)"
+    env -u LD_LIBRARY_PATH \
+        PYTHONPATH="$pythonpath" \
+        PYTHONDONTWRITEBYTECODE=1 \
+        PYTHONNOUSERSITE=1 \
+        "$PYTHON" "$@"
+}
+
 require_shared_python() {
     [[ -x "$PYTHON" ]] || die "shared environment Python is missing: $PYTHON"
     PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -c \
@@ -305,7 +315,7 @@ prepare_release() {
 
 host_smoke() {
     require_root "$1"; require_release "$2"; check_gpu_host "$3"
-    PYTHONPATH="$(release_pythonpath)" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -c \
+    run_release_python -c \
         'import mlsbench, mls_agent, minisweagent, numpy; print("PYTHON_IMPORTS_OK")'
     echo HOST_SMOKE_OK
 }
@@ -316,7 +326,7 @@ api_smoke() {
     set_api_environment "$api_key_env" "$api_key"
     nvidia-smi -L
     curl -sS -I --connect-timeout 10 --max-time 20 https://github.com/ >/dev/null
-    PYTHONPATH="$(release_pythonpath)" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m mls_lite_runner api-smoke \
+    run_release_python -m mls_lite_runner api-smoke \
         --config "$BASE_CONFIG" --model "$model"
     echo API_JOB_OK
 }
@@ -329,9 +339,10 @@ run_task() {
     set_api_environment "$api_key_env" "$api_key"
     check_gpu_host "$expected_gpus"
     local root="$(round_root "$round")" config="$(round_config "$round")"
-    PYTHONPATH="$(release_pythonpath)" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m mls_lite_runner doctor \
+    echo HOST_PYTHON_LINKAGE=release-isolated
+    run_release_python -m mls_lite_runner doctor \
         --round "$round" --mls-root "$MLS" --agent-root "$RUNNER" --python "$PYTHON"
-    PYTHONPATH="$(release_pythonpath)" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m mls_lite_runner run-task "$task" \
+    run_release_python -m mls_lite_runner run-task "$task" \
         --mls-root "$MLS" --python "$PYTHON" --config "$config" --model "$model" \
         --runtime-root "$root/execution" --state "$root/state.json" \
         --network-mode online --preflight-report "$RUNNER/reports/lite30-preflight.json" \
@@ -352,9 +363,10 @@ run_round() {
     local retry_args=() tasks=()
     IFS=',' read -r -a tasks <<< "$task_csv"
     [[ "$retry_failed" == 1 ]] && retry_args+=(--retry-failed)
-    PYTHONPATH="$(release_pythonpath)" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m mls_lite_runner doctor \
+    echo HOST_PYTHON_LINKAGE=release-isolated
+    run_release_python -m mls_lite_runner doctor \
         --round "$round" --mls-root "$MLS" --agent-root "$RUNNER" --python "$PYTHON"
-    PYTHONPATH="$(release_pythonpath)" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m mls_lite_runner run-round \
+    run_release_python -m mls_lite_runner run-round \
         --round "$round" --tasks "${tasks[@]}" --mls-root "$MLS" --python "$PYTHON" \
         --config "$config" --model "$model" --runtime-root "$root/execution" \
         --state "$root/state.json" --report "$root/report.json" \
