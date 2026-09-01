@@ -153,7 +153,7 @@ configure_shared_environment() {
     pythonpath="$(release_pythonpath)"
     local host_requirements="$RUNNER/manifests/host-requirements.txt"
     [[ -f "$host_requirements" ]] || die "host requirements manifest is missing"
-    if ! PYTHONPATH="$pythonpath" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -c \
+    if ! run_release_python -c \
         'import importlib.metadata as m; import mlsbench, mls_agent, mls_lite_runner, minisweagent, numpy, yaml, litellm, torch, deap, pgmpy, causallearn; assert m.version("litellm") == "1.93.0"; assert torch.__version__ == "2.5.1+cpu"'; then
         changed="packages-installed"
         PIP_CACHE_DIR="$ROOT/runtime/cache/pip" PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -177,7 +177,7 @@ configure_shared_environment() {
             --constraint "$transaction/resolved-constraints.txt" \
             "${MLS}[agent]" "$AGENT" "$RUNNER" numpy -r "$host_requirements"
     fi
-    PYTHONPATH="$pythonpath" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -c \
+    run_release_python -c \
         'import importlib.metadata as m; import mlsbench, mls_agent, mls_lite_runner, minisweagent, numpy, yaml, litellm, torch, deap, pgmpy, causallearn; assert m.version("litellm") == "1.93.0"; assert torch.__version__ == "2.5.1+cpu"; print("SHARED_ENV_IMPORTS_OK")'
     PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m pip check
     snapshot_environment "$transaction/after"
@@ -298,7 +298,7 @@ prepare_release() {
             --state "$root/state.json" >/dev/null
         grep -Fx "      api_base: \"$LLMROUTER_BASE_URL_VALUE\"" "$config" >/dev/null
     done
-    PYTHONPATH="$pythonpath" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -c \
+    run_release_python -c \
         'import importlib.metadata as m; import mlsbench, mls_agent, minisweagent, numpy, yaml, litellm, torch, deap, pgmpy, causallearn; assert m.version("litellm") == "1.93.0"; assert torch.__version__ == "2.5.1+cpu"; print("HOST_IMPORTS_OK")'
 
     local marker_tmp="$READY_MARKER.tmp.$$"

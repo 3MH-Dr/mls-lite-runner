@@ -26,6 +26,8 @@ class PlatformScriptTests(unittest.TestCase):
         self.assertIn("env -u LD_LIBRARY_PATH", text)
         self.assertIn("run_release_python -m mls_lite_runner run-task", text)
         self.assertIn("run_release_python -m mls_lite_runner run-round", text)
+        self.assertGreaterEqual(text.count("run_release_python -c"), 4)
+        self.assertNotIn('PYTHONPATH="$pythonpath" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -c', text)
 
     def test_submit_scripts_use_provider_qualified_model(self):
         for name in (

@@ -64,6 +64,8 @@ v003固定使用 `/runtime/envs/mlsbench-lite-agent/bin/python`，要求Python >
 
 4090基础镜像自带另一套PyTorch，并通过 `LD_LIBRARY_PATH` 优先暴露其 `libtorch`。release入口只对MLS/runner宿主Python子进程移除该变量，确保共享venv中的PyTorch加载自身动态库；Docker、GPU驱动和平台进程仍保留平台原环境。日志中的 `HOST_PYTHON_LINKAGE=release-isolated` 表示此隔离已生效。
 
+共享环境升级前后的完整导入验证也必须通过同一 `run_release_python` 隔离入口执行；否则即使安装的是正确的 `torch==2.5.1+cpu`，仍可能被基础镜像的动态库污染并表现为 `torch._C` 属性缺失。
+
 ## 单题真实链路
 
 ```text
