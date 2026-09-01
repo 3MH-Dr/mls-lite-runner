@@ -11,3 +11,4 @@ class ConfigTests(unittest.TestCase):
         self.assertNotIn("QueueProxyModel", text)
         self.assertNotIn("API_KEY", text)
         self.assertIn('api_base: "http://106.15.124.164:4000/v1"', text)
+        self.assertNotIn("data_root:", text)

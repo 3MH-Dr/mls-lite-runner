@@ -18,7 +18,7 @@ class ApiSmokeTests(unittest.TestCase):
                 return {"role": "assistant", "content": "private model response"}
 
         def get_model(name, config):
-            self.assertEqual("deepseek/example", name)
+            self.assertEqual("openai/deepseek-v4-flash", name)
             self.assertEqual("litellm", config["model_class"])
             return Model()
 
@@ -37,11 +37,17 @@ class ApiSmokeTests(unittest.TestCase):
                 {"minisweagent": package, "minisweagent.models": models},
             ):
                 result = cmd_api_smoke(
-                    Namespace(config=str(config), model="deepseek/example")
+                    Namespace(config=str(config), model="openai/deepseek-v4-flash")
                 )
 
         self.assertEqual(0, result)
         self.assertEqual(1, len(calls))
+
+    def test_rejects_model_without_litellm_provider_prefix(self):
+        result = cmd_api_smoke(
+            Namespace(config="unused.yaml", model="deepseek-v4-flash")
+        )
+        self.assertEqual(2, result)
 
 
 if __name__ == "__main__":

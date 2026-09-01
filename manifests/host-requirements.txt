@@ -1,0 +1,6 @@
+# Host-process requirements.  Task training dependencies remain inside MLS Docker images.
+litellm==1.93.0
+torch==2.5.1+cpu
+deap==1.4.1
+pgmpy==1.0.0
+causal-learn @ git+https://github.com/py-why/causal-learn.git@f66d0f9841eb478c3dcb0b61a9cc5c419fd46fb6

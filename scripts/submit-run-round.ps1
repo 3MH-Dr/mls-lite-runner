@@ -2,13 +2,14 @@ param(
     [Parameter(Mandatory = $true)][ValidateRange(1, 5)][int]$Round,
     [Parameter(Mandatory = $true)][string[]]$Tasks,
     [Parameter(Mandatory = $true)][string]$ApiKey,
-    [string]$Model = "deepseekflash",
-    [string]$ApiKeyEnv = "DEEPSEEK_API_KEY",
+    [string]$Model = "openai/deepseek-v4-flash",
+    [string]$ApiKeyEnv = "OPENAI_API_KEY",
     [string]$ReleaseId = "v003",
     [string]$JobSuffix = "001",
     [ValidateRange(1, 1440)][int]$Minutes = 1440,
     [string]$Root = "/inspire/hdd/project/long-working-agent/ky26299",
     [switch]$RetryFailed,
+    [switch]$RetryPartial,
     [switch]$Execute
 )
 $ErrorActionPreference = "Stop"
@@ -23,9 +24,10 @@ foreach ($task in $Tasks) { if ($task -notin $allowed) { throw "$task is not in 
 $gpus = [int]$spec.platform_gpus
 $taskCsv = $Tasks -join ','
 $retry = if ($RetryFailed) { 1 } else { 0 }
+$retryPartialFlag = if ($RetryPartial) { 1 } else { 0 }
 $job = "mr3mh-mls-$ReleaseId-r$Round-$JobSuffix"
 $entry = "$Root/code/mls-lite-runner-$ReleaseId/platform/qz_entry.sh"
-$inner = "bash $entry run-round $Root $ReleaseId $Round $Model $gpus $ApiKeyEnv $ApiKey $taskCsv $retry"
+$inner = "bash $entry run-round $Root $ReleaseId $Round $Model $gpus $ApiKeyEnv $ApiKey $taskCsv $retry $retryPartialFlag"
 $command = "qz-job submit --profile 4090 --docker --gpus $gpus --nodes 1 --name $job --minutes $Minutes --command '$inner'"
 if (-not $Execute) { $command; exit 0 }
 ssh qz-gpu $command

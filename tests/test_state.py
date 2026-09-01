@@ -53,3 +53,42 @@ class StateTests(unittest.TestCase):
                 state.pending_for_round(1, retry_failed=False, task_ids=selected),
             )
             self.assertEqual(selected, list(state.round_summary(1, selected)["tasks"]))
+
+    def test_invalid_submission_retries_only_with_retry_failed(self):
+        manifest = load_manifest(ROOT / "manifests" / "lite30.json")
+        task = manifest.round(1).tasks[0].id
+        with case_directory() as temp:
+            state = SuiteState(temp / "state.json", manifest)
+            state.start(task)
+            state.finish(task, status="invalid_submission", error="no metrics")
+            self.assertNotIn(task, state.pending_for_round(1, retry_failed=False))
+            self.assertIn(task, state.pending_for_round(1, retry_failed=True))
+
+    def test_partial_submission_requires_explicit_retry_partial(self):
+        manifest = load_manifest(ROOT / "manifests" / "lite30.json")
+        task = manifest.round(1).tasks[0].id
+        with case_directory() as temp:
+            state = SuiteState(temp / "state.json", manifest)
+            state.start(task)
+            state.finish(task, status="submitted_partial", error="one environment failed")
+            self.assertNotIn(task, state.pending_for_round(1, retry_failed=True))
+            self.assertIn(task, state.pending_for_round(1, retry_failed=False, retry_partial=True))
+
+    def test_reconcile_old_false_success_is_dry_run_then_backed_up(self):
+        manifest = load_manifest(ROOT / "manifests" / "lite30.json")
+        task = manifest.round(1).tasks[0].id
+        summary = {
+            "done": True,
+            "tests": 2,
+            "miniswe": {"submission": "[submit] No valid metrics available to submit."},
+        }
+        with case_directory() as temp:
+            state = SuiteState(temp / "state.json", manifest)
+            state.start(task)
+            state.finish(task, succeeded=True, summary=summary)
+            self.assertEqual("invalid_submission", state.reconcile_summaries(execute=False)[0]["to"])
+            self.assertEqual("succeeded", state.load()["tasks"][task]["status"])
+            state.reconcile_summaries(execute=True)
+            value = state.load()
+            self.assertEqual("invalid_submission", value["tasks"][task]["status"])
+            self.assertTrue(list(temp.glob("state.json.before-reconcile-*")))

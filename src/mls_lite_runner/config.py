@@ -19,7 +19,6 @@ def render_miniswe_config(
 max_steps: 1000
 max_tests: 3
 save_path: "{save_path.as_posix()}"
-data_root: vendor/data
 seeds: [42, 123, 456]
 container_runtime: docker
 compute_scale: 1.0

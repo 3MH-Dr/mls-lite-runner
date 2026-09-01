@@ -151,13 +151,16 @@ configure_shared_environment() {
     mkdir -p "$transaction"
     snapshot_environment "$transaction/before"
     pythonpath="$(release_pythonpath)"
+    local host_requirements="$RUNNER/manifests/host-requirements.txt"
+    [[ -f "$host_requirements" ]] || die "host requirements manifest is missing"
     if ! PYTHONPATH="$pythonpath" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -c \
-        'import mlsbench, mls_agent, mls_lite_runner, minisweagent, numpy, yaml'; then
+        'import importlib.metadata as m; import mlsbench, mls_agent, mls_lite_runner, minisweagent, numpy, yaml, litellm, torch, deap, pgmpy, causallearn; assert m.version("litellm") == "1.93.0"; assert torch.__version__ == "2.5.1+cpu"'; then
         changed="packages-installed"
         PIP_CACHE_DIR="$ROOT/runtime/cache/pip" PIP_DISABLE_PIP_VERSION_CHECK=1 \
             PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m pip install \
             --dry-run --report "$transaction/pip-plan.json" --upgrade-strategy only-if-needed \
-            "${MLS}[agent]" "$AGENT" "$RUNNER" numpy
+            --extra-index-url https://download.pytorch.org/whl/cpu \
+            "${MLS}[agent]" "$AGENT" "$RUNNER" numpy -r "$host_requirements"
         "$PYTHON" -c \
             'import json,sys; data=json.load(open(sys.argv[1],encoding="utf-8")); rows=sorted({"{}=={}".format(x["metadata"]["name"],x["metadata"]["version"]) for x in data.get("install",[])}); print("\n".join(rows))' \
             "$transaction/pip-plan.json" > "$transaction/resolved-constraints.txt"
@@ -170,11 +173,12 @@ configure_shared_environment() {
         PIP_CACHE_DIR="$ROOT/runtime/cache/pip" PIP_DISABLE_PIP_VERSION_CHECK=1 \
             PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m pip install \
             --report "$transaction/pip-install.json" --upgrade-strategy only-if-needed \
+            --extra-index-url https://download.pytorch.org/whl/cpu \
             --constraint "$transaction/resolved-constraints.txt" \
-            "${MLS}[agent]" "$AGENT" "$RUNNER" numpy
+            "${MLS}[agent]" "$AGENT" "$RUNNER" numpy -r "$host_requirements"
     fi
     PYTHONPATH="$pythonpath" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -c \
-        'import mlsbench, mls_agent, mls_lite_runner, minisweagent, numpy, yaml; print("SHARED_ENV_IMPORTS_OK")'
+        'import importlib.metadata as m; import mlsbench, mls_agent, mls_lite_runner, minisweagent, numpy, yaml, litellm, torch, deap, pgmpy, causallearn; assert m.version("litellm") == "1.93.0"; assert torch.__version__ == "2.5.1+cpu"; print("SHARED_ENV_IMPORTS_OK")'
     PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m pip check
     snapshot_environment "$transaction/after"
     local runner_commit mls_commit fingerprint consumer temporary
@@ -289,12 +293,13 @@ prepare_release() {
         mkdir -p "$root/config" "$root/records"
         PYTHONPATH="$pythonpath" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m mls_lite_runner write-config \
             --output "$config" --save-path "$root/records" --api-base "$LLMROUTER_BASE_URL_VALUE" --force
+        ! grep -Eq '^[[:space:]]*data_root:' "$config" || die "generated config must not override MLS absolute data_root"
         PYTHONPATH="$pythonpath" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m mls_lite_runner init-state \
             --state "$root/state.json" >/dev/null
         grep -Fx "      api_base: \"$LLMROUTER_BASE_URL_VALUE\"" "$config" >/dev/null
     done
     PYTHONPATH="$pythonpath" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -c \
-        'import mlsbench, mls_agent, minisweagent, numpy, yaml; print("HOST_IMPORTS_OK")'
+        'import importlib.metadata as m; import mlsbench, mls_agent, minisweagent, numpy, yaml, litellm, torch, deap, pgmpy, causallearn; assert m.version("litellm") == "1.93.0"; assert torch.__version__ == "2.5.1+cpu"; print("HOST_IMPORTS_OK")'
 
     local marker_tmp="$READY_MARKER.tmp.$$"
     {
@@ -316,8 +321,34 @@ prepare_release() {
 host_smoke() {
     require_root "$1"; require_release "$2"; check_gpu_host "$3"
     run_release_python -c \
-        'import mlsbench, mls_agent, minisweagent, numpy; print("PYTHON_IMPORTS_OK")'
+        'import importlib.metadata as m; import mlsbench, mls_agent, minisweagent, numpy, litellm, torch, deap, pgmpy, causallearn; assert m.version("litellm") == "1.93.0"; assert torch.__version__ == "2.5.1+cpu"; print("PYTHON_IMPORTS_OK")'
     echo HOST_SMOKE_OK
+}
+
+upgrade_release() {
+    require_root "$1"
+    set_release_paths "$2"
+    local allow_env_change="${3:-0}"
+    [[ -d "$RUNNER/.git" && -d "$MLS/.git" && -d "$AGENT/.git" ]] || die "release repositories are incomplete"
+    [[ -f "$READY_MARKER" ]] || die "existing release completion marker is missing"
+    configure_shared_environment "$allow_env_change"
+    mkdir -p "$RUNNER/runtime/config"
+    local pythonpath root config round
+    pythonpath="$(release_pythonpath)"
+    PYTHONPATH="$pythonpath" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m mls_lite_runner write-config \
+        --output "$BASE_CONFIG" --save-path "$RUNNER/runtime/records/api-smoke" \
+        --api-base "$LLMROUTER_BASE_URL_VALUE" --force
+    for round in 1 2 3 4 5; do
+        root="$(round_root "$round")"
+        config="$(round_config "$round")"
+        mkdir -p "$root/config" "$root/records"
+        PYTHONPATH="$pythonpath" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 "$PYTHON" -m mls_lite_runner write-config \
+            --output "$config" --save-path "$root/records" --api-base "$LLMROUTER_BASE_URL_VALUE" --force
+        ! grep -Eq '^[[:space:]]*data_root:' "$config" || die "generated config still overrides data_root"
+    done
+    printf 'runner_commit=%s\nupgraded_at=%s\n' "$(git -C "$RUNNER" rev-parse HEAD)" "$(date -u +%FT%TZ)" \
+        >> "$READY_MARKER"
+    echo UPGRADE_RELEASE_OK
 }
 
 api_smoke() {
@@ -353,9 +384,10 @@ run_task() {
 
 run_round() {
     require_root "$1"; require_release "$2"
-    local round="$3" model="$4" expected_gpus="$5" api_key_env="$6" api_key="$7" task_csv="$8" retry_failed="${9:-0}"
+    local round="$3" model="$4" expected_gpus="$5" api_key_env="$6" api_key="$7" task_csv="$8" retry_failed="${9:-0}" retry_partial="${10:-0}"
     [[ "$round" =~ ^[1-5]$ ]] || die "invalid round"
     [[ "$retry_failed" =~ ^[01]$ ]] || die "retry flag must be 0 or 1"
+    [[ "$retry_partial" =~ ^[01]$ ]] || die "retry partial flag must be 0 or 1"
     [[ "$task_csv" =~ ^[a-z0-9-]+(,[a-z0-9-]+)*$ ]] || die "invalid task list"
     set_api_environment "$api_key_env" "$api_key"
     check_gpu_host "$expected_gpus"
@@ -363,6 +395,7 @@ run_round() {
     local retry_args=() tasks=()
     IFS=',' read -r -a tasks <<< "$task_csv"
     [[ "$retry_failed" == 1 ]] && retry_args+=(--retry-failed)
+    [[ "$retry_partial" == 1 ]] && retry_args+=(--retry-partial)
     echo HOST_PYTHON_LINKAGE=release-isolated
     run_release_python -m mls_lite_runner doctor \
         --round "$round" --mls-root "$MLS" --agent-root "$RUNNER" --python "$PYTHON"
@@ -375,6 +408,17 @@ run_round() {
         --asset-receipt-root "$RUNNER/runtime/assets/receipts" --prepare-lock "$LOCK" \
         "${retry_args[@]}" --execute
     echo RUN_ROUND_ORCHESTRATION_OK
+}
+
+reconcile_state() {
+    require_root "$1"; require_release "$2"
+    local round="$3" execute="${4:-0}" root args=()
+    [[ "$round" =~ ^[1-5]$ ]] || die "invalid round"
+    [[ "$execute" =~ ^[01]$ ]] || die "execute flag must be 0 or 1"
+    root="$(round_root "$round")"
+    [[ "$execute" == 1 ]] && args+=(--execute)
+    run_release_python -m mls_lite_runner reconcile-state --state "$root/state.json" "${args[@]}"
+    echo RECONCILE_STATE_OK
 }
 
 report_round() {
@@ -394,12 +438,14 @@ main() {
     case "$ACTION" in
         probe-shared-env) probe_shared_environment "$@" ;;
         prepare-release) prepare_release "$@" ;;
+        upgrade-release) upgrade_release "$@" ;;
         host-smoke) host_smoke "$@" ;;
         api-smoke) api_smoke "$@" ;;
         run-task) run_task "$@" ;;
         run-round) run_round "$@" ;;
+        reconcile-state) reconcile_state "$@" ;;
         report) report_round "$@" ;;
-        *) die "usage: qz_entry.sh {probe-shared-env|prepare-release|host-smoke|api-smoke|run-task|run-round|report} ..." ;;
+        *) die "usage: qz_entry.sh {probe-shared-env|prepare-release|upgrade-release|host-smoke|api-smoke|run-task|run-round|reconcile-state|report} ..." ;;
     esac
 }
 

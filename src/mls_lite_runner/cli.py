@@ -15,9 +15,11 @@ from mls_agent.typing_compat import enable_python310_typing_compat
 from .assets import prepare_task_assets, unload_task_assets
 from .config import DEFAULT_LLMROUTER_BASE_URL, render_miniswe_config
 from .doctor import Check, inspect_task, run_doctor
+from .hostdeps import audit_host_dependencies
 from .io import atomic_write_json, atomic_write_text
 from .manifest import Manifest, load_manifest
-from .mls import RunSettings, agent_command, run_agent, semantic_success
+from .mls import RunSettings, agent_command, classify_result, run_agent
+from .mounts import audit_task_mounts
 from .prepare import cleanup_images, execute_commands, export_images, hydrate_images, packages_for_round, prepare_commands
 from .preflight import audit_suite, audit_task, write_reports
 from .state import SuiteState
@@ -26,6 +28,7 @@ from .state import SuiteState
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MANIFEST = PROJECT_ROOT / "manifests" / "lite30.json"
 DEFAULT_ASSET_MANIFEST_DIR = PROJECT_ROOT / "manifests" / "task-assets"
+DEFAULT_HOST_IMPORT_REGISTRY = PROJECT_ROOT / "manifests" / "host-imports.json"
 
 
 def _manifest(value: str) -> Manifest:
@@ -81,6 +84,10 @@ def cmd_write_config(args: argparse.Namespace) -> int:
 
 
 def cmd_api_smoke(args: argparse.Namespace) -> int:
+    model_error = _validate_direct_model(args.model)
+    if model_error:
+        print(f"API smoke configuration error: {model_error}", file=sys.stderr)
+        return 2
     config_path = Path(args.config).resolve()
     if not config_path.is_file():
         print(f"configuration is missing: {config_path}", file=sys.stderr)
@@ -138,7 +145,19 @@ def _settings(args: argparse.Namespace) -> RunSettings:
     )
 
 
+def _validate_direct_model(model: str) -> str | None:
+    if not model.startswith("openai/") or len(model) == len("openai/"):
+        return (
+            "the configured OpenAI-compatible gateway requires a LiteLLM provider prefix; "
+            "use openai/<model>, for example openai/deepseek-v4-flash"
+        )
+    return None
+
+
 def _validate_run_infrastructure(args: argparse.Namespace) -> str | None:
+    model_error = _validate_direct_model(args.model)
+    if model_error:
+        return model_error
     config = Path(args.config)
     if not config.is_file():
         return f"configuration is missing: {config}"
@@ -198,6 +217,19 @@ def _ensure_task_ready(args: argparse.Namespace, manifest: Manifest, mls_root: P
         if args.execute and not issues:
             audit = audit_task(mls_root, task_id, Path(args.asset_manifest_dir).resolve())
             issues = [f"{item['code']}: {item['message']}" for item in audit["issues"] if item["level"] in {"BLOCKED", "ERROR"}]
+    if assets_ready and not issues:
+        host = audit_host_dependencies(
+            mls_root,
+            task_id,
+            Path(args.asset_manifest_dir).resolve(),
+            Path(args.host_import_registry).resolve(),
+        )
+        for item in host["issues"]:
+            print(f"HOST_DEP {item['code']}: {item['message']}")
+        issues.extend(f"{item['code']}: {item['message']}" for item in host["issues"])
+        mounts = audit_task_mounts(mls_root, task_id, Path(args.config).resolve())
+        print(f"DOCKER_MOUNTS {task_id}: checked={len(mounts['checked'])} data_root={mounts['data_root']}")
+        issues.extend(f"{item['code']}: {item['message']}" for item in mounts["issues"])
     if task.review_required:
         print(f"[WARN] {task.id}: {task.notes}", file=sys.stderr)
     return assets_ready and not issues, issues
@@ -224,10 +256,19 @@ def _run_one(args: argparse.Namespace, manifest: Manifest, state: SuiteState, ta
     log = settings.runtime_root / "logs" / task_id / f"attempt-{attempt:03d}.log"
     try:
         returncode, output, summary = run_agent(command, cwd=settings.mls_root, log_path=log)
-        succeeded, error = semantic_success(returncode, summary)
-        state.finish(task_id, succeeded=succeeded, summary=summary, error=error)
-        print(f"RESULT {task_id}: {'succeeded' if succeeded else 'failed'}; log={log}")
-        return "succeeded" if succeeded else "failed"
+        result = classify_result(returncode, summary)
+        state.finish(
+            task_id,
+            status=result.status,
+            summary=summary,
+            error=result.error,
+            evidence=result.evidence,
+        )
+        print(
+            f"RESULT {task_id}: {result.status}; metrics={result.evidence.get('metric_count', 0)}; "
+            f"log={log}"
+        )
+        return result.status
     except Exception as exc:
         state.finish(task_id, succeeded=False, error=f"runner exception: {type(exc).__name__}: {exc}")
         print(f"RESULT {task_id}: failed with {type(exc).__name__}: {exc}; log={log}", file=sys.stderr)
@@ -270,6 +311,7 @@ def cmd_run_round(args: argparse.Namespace) -> int:
     tasks = state.pending_for_round(
         args.round,
         retry_failed=args.retry_failed,
+        retry_partial=args.retry_partial,
         task_ids=selected_tasks,
     )
     outcomes: dict[str, str] = {}
@@ -300,7 +342,18 @@ def cmd_run_round(args: argparse.Namespace) -> int:
     print(f"ROUND_COUNTS={json.dumps(summary['counts'], sort_keys=True)}")
     complete = summary["counts"].get("succeeded", 0) == len(selected_tasks)
     print(f"ROUND_COMPLETE={'yes' if complete else 'no'}")
-    return 3 if any(value == "failed" for value in outcomes.values()) else 0
+    incomplete = {"failed", "invalid_submission", "submitted_partial", "blocked"}
+    return 3 if any(value in incomplete for value in outcomes.values()) else 0
+
+
+def cmd_reconcile_state(args: argparse.Namespace) -> int:
+    state = SuiteState(Path(args.state).resolve(), _manifest(args.manifest))
+    actions = state.reconcile_summaries(execute=args.execute)
+    for action in actions:
+        prefix = "RECLASSIFIED" if args.execute else "WOULD_RECLASSIFY"
+        print(f"{prefix} {action['task']}: {action['from']} -> {action['to']}")
+    print(f"RECONCILE_COUNT={len(actions)}")
+    return 0
 
 
 def cmd_prepare_round(args: argparse.Namespace) -> int:
@@ -417,6 +470,7 @@ def add_run_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--asset-manifest-dir", default=str(DEFAULT_ASSET_MANIFEST_DIR))
     parser.add_argument("--asset-source-root")
     parser.add_argument("--asset-receipt-root", required=True)
+    parser.add_argument("--host-import-registry", default=str(DEFAULT_HOST_IMPORT_REGISTRY))
     parser.add_argument(
         "--prepare-lock",
         help="cross-process lock file used while MLS prepares shared packages",
@@ -495,6 +549,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_run_args(round_parser)
     round_parser.add_argument("--round", type=int, choices=range(1, 6), required=True)
     round_parser.add_argument("--retry-failed", action="store_true")
+    round_parser.add_argument("--retry-partial", action="store_true")
     round_parser.add_argument(
         "--tasks",
         nargs="+",
@@ -507,6 +562,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_common_manifest(simulate)
     simulate.add_argument("--interrupt-after", type=int)
     simulate.set_defaults(func=cmd_simulate)
+
+    reconcile = commands.add_parser("reconcile-state")
+    add_common_manifest(reconcile)
+    reconcile.add_argument("--state", required=True)
+    reconcile.add_argument("--execute", action="store_true")
+    reconcile.set_defaults(func=cmd_reconcile_state)
 
     prepare_task = commands.add_parser("prepare-task")
     prepare_task.add_argument("task")

@@ -1,8 +1,8 @@
 param(
     [Parameter(Mandatory = $true)][string]$Task,
     [Parameter(Mandatory = $true)][string]$ApiKey,
-    [string]$Model = "deepseekflash",
-    [string]$ApiKeyEnv = "DEEPSEEK_API_KEY",
+    [string]$Model = "openai/deepseek-v4-flash",
+    [string]$ApiKeyEnv = "OPENAI_API_KEY",
     [string]$ReleaseId = "v003",
     [string]$JobSuffix = "001",
     [ValidateRange(1, 1440)][int]$Minutes = 360,

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+import shutil
 
 from .io import atomic_write_json, read_json
 from .manifest import Manifest
@@ -84,15 +85,31 @@ class SuiteState:
         item["checked_at"] = utc_now()
         self._save(value)
 
-    def finish(self, task_id: str, *, succeeded: bool, summary: Any = None, error: str | None = None) -> None:
+    def finish(
+        self,
+        task_id: str,
+        *,
+        status: str | None = None,
+        succeeded: bool | None = None,
+        summary: Any = None,
+        error: str | None = None,
+        evidence: dict[str, Any] | None = None,
+    ) -> None:
         value = self.load()
         item = value["tasks"][task_id]
         if item["status"] != "running":
             raise ValueError(f"task {task_id} is not running")
-        item["status"] = "succeeded" if succeeded else "failed"
+        if status is None:
+            if succeeded is None:
+                raise ValueError("finish requires status or succeeded")
+            status = "succeeded" if succeeded else "failed"
+        if status not in {"succeeded", "failed", "invalid_submission", "submitted_partial"}:
+            raise ValueError(f"invalid terminal status: {status}")
+        item["status"] = status
         item["finished_at"] = utc_now()
         item["summary"] = summary
         item["last_error"] = error
+        item["result_evidence"] = evidence or {}
         self._save(value)
 
     def pending_for_round(
@@ -100,12 +117,15 @@ class SuiteState:
         round_id: int,
         *,
         retry_failed: bool,
+        retry_partial: bool = False,
         task_ids: list[str] | None = None,
     ) -> list[str]:
         value = self.initialize()
         allowed = {"pending", "preflight_blocked"}
         if retry_failed:
-            allowed.add("failed")
+            allowed.update({"failed", "invalid_submission"})
+        if retry_partial:
+            allowed.add("submitted_partial")
         selected = set(task_ids) if task_ids is not None else None
         return [
             task.id
@@ -126,6 +146,34 @@ class SuiteState:
         for item in tasks.values():
             counts[item["status"]] = counts.get(item["status"], 0) + 1
         return {"round": round_id, "counts": counts, "tasks": tasks, "updated_at": value["updated_at"]}
+
+    def reconcile_summaries(self, *, execute: bool) -> list[dict[str, str]]:
+        """Reclassify old exit-code-only successes; preserve a timestamped state backup."""
+        from .mls import classify_result
+
+        value = self.initialize()
+        actions: list[dict[str, str]] = []
+        for task_id, item in value["tasks"].items():
+            if item.get("status") != "succeeded" or not item.get("summary"):
+                continue
+            result = classify_result(0, item["summary"])
+            if result.status == "succeeded":
+                continue
+            actions.append({"task": task_id, "from": "succeeded", "to": result.status})
+            if execute:
+                item["status"] = result.status
+                item["last_error"] = result.error
+                item["result_evidence"] = result.evidence
+                item["reconciled_at"] = utc_now()
+        if execute and actions:
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            backup = self.path.with_name(f"{self.path.name}.before-reconcile-{stamp}")
+            shutil.copy2(self.path, backup)
+            value.setdefault("reconciliation_history", []).append({
+                "at": utc_now(), "backup": str(backup), "actions": actions,
+            })
+            self._save(value)
+        return actions
 
     def _save(self, value: dict[str, Any]) -> None:
         value["updated_at"] = utc_now()

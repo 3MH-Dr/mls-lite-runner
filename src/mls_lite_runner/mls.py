@@ -17,6 +17,13 @@ class RunSettings:
     runtime_root: Path
 
 
+@dataclass(frozen=True)
+class ResultClassification:
+    status: str
+    error: str | None
+    evidence: dict[str, Any]
+
+
 def agent_command(settings: RunSettings, task_id: str, attempt: int) -> list[str]:
     workspace = settings.runtime_root / "workspaces" / task_id / f"attempt-{attempt:03d}"
     return [
@@ -53,17 +60,74 @@ def parse_summary(output: str) -> dict[str, Any] | None:
     return None
 
 
-def semantic_success(returncode: int, summary: dict[str, Any] | None) -> tuple[bool, str | None]:
+def _submission_metrics(submission: str) -> dict[str, Any]:
+    marker = "[Leaderboard] Results saved:"
+    for line in reversed(submission.splitlines()):
+        if marker not in line:
+            continue
+        raw = line.split(marker, 1)[1].strip()
+        try:
+            value = ast.literal_eval(raw)
+        except (SyntaxError, ValueError):
+            return {}
+        return value if isinstance(value, dict) else {}
+    return {}
+
+
+def classify_result(returncode: int, summary: dict[str, Any] | None) -> ResultClassification:
+    """Require MLS leaderboard metrics; process completion alone is not benchmark success."""
+    evidence: dict[str, Any] = {
+        "returncode": returncode,
+        "done": summary.get("done") if summary else None,
+        "tests": summary.get("tests") if summary else None,
+        "exit_status": summary.get("exit_status") if summary else None,
+    }
     if returncode != 0:
-        return False, f"mlsbench exited with code {returncode}"
+        return ResultClassification("failed", f"mlsbench exited with code {returncode}", evidence)
     if not summary:
-        return False, "mlsbench emitted no parseable summary"
+        return ResultClassification("failed", "mlsbench emitted no parseable summary", evidence)
     if summary.get("done") is not True:
-        return False, "agent summary has done != true"
+        return ResultClassification("failed", "agent summary has done != true", evidence)
     tests = summary.get("tests", 0)
     if not isinstance(tests, int) or tests < 1:
-        return False, "agent summary reports no completed test"
-    return True, None
+        return ResultClassification("failed", "agent summary reports no completed test", evidence)
+
+    miniswe = summary.get("miniswe", {})
+    submission = miniswe.get("submission", "") if isinstance(miniswe, dict) else ""
+    submission = submission if isinstance(submission, str) else ""
+    metrics = _submission_metrics(submission)
+    failure_tokens = (
+        "No valid metrics available",
+        "[STATUS: FAILED",
+        "[COMMAND FAILED",
+        "[BUDGET CHECK FAILED]",
+        "[PARSER FAILED",
+    )
+    failures = [token for token in failure_tokens if token in submission]
+    evidence.update({
+        "metric_count": len(metrics),
+        "metric_names": sorted(str(key) for key in metrics),
+        "failure_markers": failures,
+        "leaderboard_results_marker": "[Leaderboard] Results saved:" in submission,
+    })
+    if not metrics:
+        return ResultClassification(
+            "invalid_submission",
+            "MLS completed but saved no valid leaderboard metrics",
+            evidence,
+        )
+    if failures:
+        return ResultClassification(
+            "submitted_partial",
+            "MLS saved some metrics, but one or more official test environments failed",
+            evidence,
+        )
+    return ResultClassification("succeeded", None, evidence)
+
+
+def semantic_success(returncode: int, summary: dict[str, Any] | None) -> tuple[bool, str | None]:
+    result = classify_result(returncode, summary)
+    return result.status == "succeeded", result.error
 
 
 def run_agent(command: Sequence[str], *, cwd: Path, log_path: Path) -> tuple[int, str, dict[str, Any] | None]:
@@ -89,4 +153,3 @@ def run_agent(command: Sequence[str], *, cwd: Path, log_path: Path) -> tuple[int
     returncode = process.wait()
     output = "".join(chunks)
     return returncode, output, parse_summary(output)
-

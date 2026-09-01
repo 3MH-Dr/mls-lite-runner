@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from mls_lite_runner.mls import RunSettings, agent_command, parse_summary, semantic_success
+from mls_lite_runner.mls import RunSettings, agent_command, classify_result, parse_summary, semantic_success
 
 
 class MLSTests(unittest.TestCase):
@@ -17,6 +17,30 @@ class MLSTests(unittest.TestCase):
         self.assertEqual((False, "agent summary has done != true"), semantic_success(0, summary))
 
     def test_done_with_test_is_success(self):
-        summary = parse_summary("[done] Summary: {'steps': 7, 'tests': 1, 'done': True}\n")
+        summary = {
+            "steps": 7,
+            "tests": 1,
+            "done": True,
+            "miniswe": {"submission": "[Leaderboard] Results saved: {'accuracy': 0.9}"},
+        }
         self.assertEqual((True, None), semantic_success(0, summary))
 
+    def test_done_without_metrics_is_invalid_not_success(self):
+        summary = {
+            "tests": 2,
+            "done": True,
+            "miniswe": {"submission": "[submit] No valid metrics available to submit."},
+        }
+        result = classify_result(0, summary)
+        self.assertEqual("invalid_submission", result.status)
+        self.assertEqual(0, result.evidence["metric_count"])
+
+    def test_metrics_with_failed_environment_are_partial(self):
+        summary = {
+            "tests": 3,
+            "done": True,
+            "miniswe": {"submission": "[BUDGET CHECK FAILED]\n[Leaderboard] Results saved: {'mmd': 0.1}"},
+        }
+        result = classify_result(0, summary)
+        self.assertEqual("submitted_partial", result.status)
+        self.assertEqual(["[BUDGET CHECK FAILED]"], result.evidence["failure_markers"])

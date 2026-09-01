@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "requirements_file": "host-requirements.txt",
+  "modules": {
+    "litellm": {"requirement": "litellm==1.93.0", "tasks": ["*"]},
+    "torch": {"requirement": "torch==2.5.1+cpu", "tasks": ["*"]},
+    "deap": {"requirement": "deap==1.4.1", "tasks": ["optimization-multi-objective"]},
+    "pgmpy": {"requirement": "pgmpy==1.0.0", "tasks": ["causal-discovery-discrete"]},
+    "causallearn": {
+      "requirement": "causal-learn @ git+https://github.com/py-why/causal-learn.git@f66d0f9841eb478c3dcb0b61a9cc5c419fd46fb6",
+      "tasks": ["causal-discovery-discrete"]
+    }
+  }
+}

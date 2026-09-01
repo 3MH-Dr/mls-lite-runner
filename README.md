@@ -57,7 +57,7 @@ code/mls-lite-runner-v003/                 完整、可整体替换的release
 model_class: litellm
 ```
 
-模型名由运行参数提供。应传入本地已验证的真实LiteLLM模型标识；在确认前不要把“deepseekflash”擅自转换成其他名字。
+模型名由运行参数提供。当前自定义OpenAI兼容网关必须使用带LiteLLM provider前缀的 `openai/deepseek-v4-flash`，并把运行时密钥注入 `OPENAI_API_KEY`；裸名称 `deepseek-v4-flash` 会在API请求前被拒绝。
 配置同时写入 `api_base: "http://106.15.124.164:4000/v1"`；平台入口还会显式执行 `export LLMROUTER_BASE_URL="http://106.15.124.164:4000/v1"`。
 
 v003固定使用 `/runtime/envs/mlsbench-lite-agent/bin/python`，要求Python >=3.10及pip可用。MLS、mini-SWE和runner源码不做editable安装，而由release专用PYTHONPATH选择；共享venv只提供公共依赖。准备过程先保存baseline和事务前快照，若依赖已齐则不修改；若缺失，只生成pip dry-run计划并停止，必须显式传入 `-AllowEnvironmentChange` 才在独占锁内安装并保存事务后快照。环境总账位于 `/runtime/env-registry/mlsbench-lite-agent`，缺少环境凭据或 `PREPARE_RELEASE_OK` 会阻止GPU作业。
@@ -92,6 +92,8 @@ preflight_blocked
 running
 succeeded
 failed
+invalid_submission
+submitted_partial
 ```
 
 题目本地资源缺失时：
@@ -102,7 +104,13 @@ failed
 - 不增加attempt；
 - 标记 `preflight_blocked` 并继续下一题。
 
-下次运行会自动重新检查blocked题。补齐后直接进入running；成功题永远跳过。单题实际执行失败会记录failed并继续后续题，使用 `--retry-failed` 明确重试。共享Python、Docker、GPU数量、Agent导入或direct配置错误属于基础设施错误，会在整轮开始前终止。
+下次运行会自动重新检查blocked题。补齐后直接进入running；成功题永远跳过。`invalid_submission` 表示Agent流程结束但MLS没有写入任何有效指标，和failed一起由 `--retry-failed` 重试；`submitted_partial` 表示已有部分真实指标但至少一个官方环境失败，只能用 `--retry-partial` 明确重试。
+
+成功判定不再只看退出码、`done` 和测试次数，而要求提交摘要中出现MLS的 `[Leaderboard] Results saved` 且字典非空。历史状态可先 dry-run `reconcile-state`，确认后执行；执行前自动备份原state，不删除summary、日志或workspace。
+
+宿主依赖由 `manifests/host-imports.json` 白名单管理，并从parser、score spec、edit ops和已登记dgp递归扫描。共享venv固定验证LiteLLM 1.93.0、CPU PyTorch 2.5.1、deap、pgmpy和causal-learn；pip负责这些包的传递依赖。发现未登记或未安装模块会在Agent/API调用前阻断。
+
+runner不再写相对 `data_root`，让MLS使用当前release下的绝对 `vendor/data`。每题启动前还会统一检查包配置中的 `data_bind`、`data_deps`、runner `-v/--volume/--mount`：宿主源必须是绝对路径且解析后位于固定MLS checkout内，容器目标也必须绝对；相对路径、路径逃逸、符号链接逃逸和格式错误都会在调用Docker前阻断。
 
 日志中的 `RUN_ROUND_ORCHESTRATION_OK` 只表示六题循环正常走到末尾；只有 `ROUND_COMPLETE=yes` 且 `ROUND_COUNTS` 为6个succeeded，才表示该轮全部完成。blocked题可在补齐后原命令重跑，failed题需加 `-RetryFailed`。
 
